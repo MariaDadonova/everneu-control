@@ -46,7 +46,7 @@ class Backups
         wp_enqueue_style('evn-client-style', EVN_URL . 'assets/css/backups_tabs_styles.css');
         ?>
 
-        <h3>Backups</h3>
+        <h3>Backups with update 1.0.3</h3>
 
         <div id="container">
             <div class="tabs">
