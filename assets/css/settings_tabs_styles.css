@@ -1,0 +1,108 @@
+*{box-sizing:border-box}
+
+.tabs {
+    width: 100%;
+    padding: 0px;
+    margin: 0 auto;
+    position: relative;
+    border: 1px solid #f0f0f0;
+}
+
+section {
+    display: none;
+    padding: 15px;
+    background: white;
+    position: absolute;
+    top: 0;
+    left: 300px;
+    width: calc(100% - 300px);
+}
+
+p {
+    margin: 0;
+}
+
+input[type="radio"] {
+    display: none;
+}
+
+label {
+    display: block;
+    width: 300px;
+    padding: 15px;
+    color: #4F5966;
+    background: #f0f0f0;
+    cursor: pointer;
+}
+
+#lb {
+    color: #555 !important;
+    background: white !important;
+    display: inline;
+    padding: 0px;
+}
+
+input:checked + label {
+    color: #555;
+    background: white;
+}
+
+#sitemap:checked ~ #content-sitemap,
+#svg:checked ~ #content-svg,
+#github:checked ~ #content-github {
+    display: block;
+}
+
+.ev-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
+}
+
+/* Keys form styles */
+.ev-form input[type="text"] {
+    padding: 5px 10px;
+    margin: 0 !important;
+    border-radius: 0px;
+    width: 100%;
+    border: 15px solid #e7f4ff;
+}
+
+.ev-form label {
+    background: #e7f4ff;
+    font-weight: bold;
+    width: 100%;
+    padding-bottom: 0px !important;
+}
+
+section {
+    animation: scale 0.7s ease-in-out;
+}
+
+@keyframes scale {
+    0% {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.005);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.wp-core-ui .button,
+.wp-core-ui .button-primary {
+    border-radius: 0px !important;
+}
+
+.wp-core-ui .button-primary {
+    background: #309bff !important;
+    border: none !important;
+    color: #f1f1f1 !important;
+    font-weight: bold;
+    width: 150px !important;
+}

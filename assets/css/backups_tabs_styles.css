@@ -1,0 +1,142 @@
+*{box-sizing:border-box}
+
+.tabs {
+    width: 100%;
+    padding: 0px;
+    margin: 0 auto;
+    position: relative;
+    border: 1px solid #f0f0f0;
+}
+
+section {
+    display: none;
+    padding: 15px;
+    background: white;
+    position: absolute;
+    top: 0;
+    left: 300px;
+    width: calc(100% - 300px);
+}
+
+p {
+    margin: 0;
+}
+
+input[type="radio"] {
+    display: none;
+}
+
+label {
+    display: block;
+    width: 300px;
+    padding: 15px;
+    color: #4F5966;
+    background: #f0f0f0;
+    cursor: pointer;
+}
+
+#lb {
+    color: #555 !important;
+    background: white !important;
+    display: inline;
+    padding: 0px;
+}
+
+input:checked + label {
+    color: #555;
+    background: white;
+}
+
+#schedule-backup:checked ~ #content-schedule-backup,
+#manual-backup:checked ~ #content-manual-backup,
+#api-keys:checked ~ #content-api-keys,
+#logs:checked ~ #content-logs {
+    display: block;
+}
+
+section {
+    animation: scale 0.7s ease-in-out;
+}
+
+@keyframes scale {
+    0% {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.005);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Styles for table */
+.tg {
+    width: 100%;
+    margin-bottom: 20px;
+    border: 15px solid #e7f4ff;
+    border-top: 5px solid #e7f4ff;
+    border-collapse: collapse;
+}
+
+.tg th {
+    font-weight: bold;
+    padding: 5px;
+    background: #e7f4ff;
+    border: none;
+    border-bottom: 5px solid #e7f4ff;
+    text-align: center;
+}
+
+.tg td {
+    padding: 5px;
+    border: none;
+    border-bottom: 5px solid #e7f4ff;
+    text-align: center;
+}
+
+/* Keys form styles */
+.ev-form input[type="text"] {
+    padding: 5px 10px;
+    margin: 0 !important;
+    border-radius: 0px;
+    width: 100%;
+    border: 15px solid #e7f4ff;
+}
+
+.ev-form label {
+    background: #e7f4ff;
+    font-weight: bold;
+    width: 100%;
+    padding-bottom: 0px !important;
+}
+
+.ev-submit-form input[type="submit"] {
+    display: block;
+}
+
+.ev-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
+}
+
+.notice {
+    margin: 5px 0px 2px !important;
+}
+
+.wp-core-ui .button,
+.wp-core-ui .button-primary {
+    border-radius: 0px !important;
+}
+
+.wp-core-ui .button-primary {
+    background: #309bff !important;
+    border: none !important;
+    color: #f1f1f1 !important;
+    font-weight: bold;
+    width: 150px !important;
+}

@@ -1,0 +1,102 @@
+/* Style the tab */
+.tab {
+    overflow: hidden;
+    border: 1px solid #ccc;
+    background-color: #f1f1f1;
+}
+
+/* Style the buttons inside the tab */
+.tab button {
+    background-color: inherit;
+    float: left;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    transition: 0.3s;
+    font-size: 17px;
+}
+
+/* Change background color of buttons on hover */
+.tab button:hover {
+    background-color: #ddd;
+}
+
+/* Create an active/current tablink class */
+.tab button.active {
+    background-color: #ccc;
+}
+
+/* Style the tab content */
+.tabcontent {
+    display: none;
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    border-top: none;
+}
+
+/* File tree styles */
+.treeCSS .drop {
+    position: absolute;
+    left: -.5em;
+    top: .4em; /* .2em (font-size: 80%;) + .2em (padding из .treeCSS li li) */
+    width: .9em;
+    height: .9em;
+    line-height: .9em;
+    text-align: center;
+    background: #fff;
+    font-size: 80%;
+    cursor: pointer;
+}
+
+.treeCSS li:last-child > .drop {
+    margin-left: 1px;
+}
+
+.treeCSS .drop + ul {
+    display: none;
+}
+
+.treeCSS .dropM + ul {
+    display: block;
+}
+
+.treeCSS,
+.treeCSS ul,
+.treeCSS li {
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    list-style: none;
+}
+
+.treeCSS ul {
+    margin: 0 0 0 .5em;
+}
+
+.treeCSS > li:not(:only-child),
+.treeCSS li li {
+    position: relative;
+    padding: .2em 0 0 1.2em;
+}
+
+.treeCSS li:not(:last-child) {
+    border-left: 1px solid #ccc;
+}
+
+.treeCSS li li:before,
+.treeCSS > li:not(:only-child):before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1.1em;
+    height: .7em;
+    border-bottom: 1px solid #ccc;
+}
+
+.treeCSS li:last-child:before {
+    width: calc(1.1em - 1px);
+    border-left: 1px solid #ccc;
+}
+
