@@ -79,8 +79,29 @@ class AutoBackupMaster {
         //Create folder in Dropbox
         $upload_dir = wp_upload_dir();
         $path = $upload_dir['basedir'] . '/backups/'.$name;
+
+        clearstatcache(true, $path);
+
+        if (!file_exists($path)) {
+            echo "Can't find a file: $path";
+            return;
+        }
+
         $fp = fopen($path, 'rb');
+
+        if (!$fp) {
+            echo "Can't open the file: $path";
+            return;
+        }
+
         $size = filesize($path);
+
+        if ($size === false) {
+            error_log("Can't get a file's size: $path");
+            fclose($fp);
+            return;
+        }
+
         $path_in_db = $instal.'/'.$name;
 
         if (!$drops->GetListFolder($access_token, $instal)) {
