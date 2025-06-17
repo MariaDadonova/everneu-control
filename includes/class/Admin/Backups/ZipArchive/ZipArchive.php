@@ -11,12 +11,15 @@ function Zip($source, $destination){
     }
 
     $source = str_replace('\\', '/', realpath($source));
+    error_log("Zip Archive 14 - source: " . $source);
 
     if (is_dir($source) === true){
         $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source), RecursiveIteratorIterator::SELF_FIRST);
 
         foreach ($files as $file){
             $file = str_replace('\\', '/', $file);
+
+            error_log("Zip Archive 22 - file: " . $file);
 
             // Ignore "." and ".." folders
             if( in_array(substr($file, strrpos($file, '/')+1), array('.', '..')) )
@@ -25,23 +28,26 @@ function Zip($source, $destination){
             $file = realpath($file);
             $file = str_replace('\\', '/', $file);
 
-        if((stripos($file, 'backups') === false) && (stripos($file, '.git') === false) && (stripos($file, '.idea') === false) /*&& (stripos($file, '.sql') === false)*/){
+            error_log("Zip Archive 31 - file: " . $file);
+
+            if((stripos($file, 'backups') === false) && (stripos($file, '.git') === false) && (stripos($file, '.idea') === false) /*&& (stripos($file, '.sql') === false)*/){
                 //$log = date('Y-m-d H:i:s') . ' log time';
                 //file_put_contents(__DIR__ . '/log.txt', stripos($file, 'uploads').' '.$file.' '.$log . PHP_EOL, FILE_APPEND);
 
-            if (is_dir($file) === true) {
-                $zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
-            }elseif (is_file($file) === true){
-                //$zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
-                $zip->addFile($file, str_replace($source . '/', '', $file));
+                if (is_dir($file) === true) {
+                    $zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
+                    error_log("Zip Archive 39 - add dir: " . $zip->addEmptyDir(str_replace($source . '/', '', $file . '/')));
+                }elseif (is_file($file) === true){
+                    $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
+                    error_log("Zip Archive 42 - add from string: " . $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file)));
+                }
             }
-          }
 
 
         }
     }else if (is_file($source) === true){
-        //$zip->addFromString(basename($source), file_get_contents($source));
-        $zip->addFile($source, basename($source));
+        $zip->addFromString(basename($source), file_get_contents($source));
+        error_log("Zip Archive 50 - add from string: " . $zip->addFromString(basename($source), file_get_contents($source)));
     }
     return $zip->close();
 }
