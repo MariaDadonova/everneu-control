@@ -26,10 +26,19 @@ class AutoBackupMaster {
         $instal =  $_SERVER['HTTP_HOST'];
 
         $upload = wp_upload_dir();
+        error_log("wp_upload_dir: " . print_r($upload));
+
         $upload_dir = $upload['basedir'];
+        error_log("Upload dir: " . $upload_dir);
+
         $upload_dir = $upload_dir . '/backups/';
+        error_log("Upload dir 2: " . $upload_dir);
+
         $src_dir = $_SERVER['DOCUMENT_ROOT'];
+        error_log("Src dir: " . $src_dir);
+
         $name = str_replace('.', '_', $instal).date('Y-m-d_h-i-s').".zip";
+        error_log("Name: " . $name);
 
         //Create a SQL dump
         $this->createSQLdump();
@@ -46,33 +55,23 @@ class AutoBackupMaster {
         $database = new MySql();
         $all_tables   = $database->get_tables();
         $database->db_backup($all_tables);
+
+        if ($database->db_backup($all_tables)) {
+            error_log("Dump created");
+        } else {
+            error_log("Failed create dump");
+        }
     }
 
     public function createBackup($upload_dir, $src_dir, $name)
     {
-        /*$archive_dir = $upload_dir;
+        $archive_dir = $upload_dir;
+        error_log("createBackup 69 - Archive dir: " . $archive_dir);
 
-        $zip = new ZipArchive();
         $fileName = $archive_dir.$name;
+        error_log("createBackup 72 - fileName: " . $fileName);
 
-        Zip($src_dir, $fileName);*/
-
-        if (!file_exists($upload_dir)) {
-            mkdir($upload_dir, 0755, true);
-        }
-
-        $temp_path = sys_get_temp_dir() . '/' . $name;
-        $final_path = $upload_dir . $name;
-
-        if (Zip($src_dir, $temp_path)) {
-            if (rename($temp_path, $final_path)) {
-                echo "Archive successfully moved to ". $final_path;
-            } else {
-                echo "Failed move an archive from temporary folder.";
-            }
-        } else {
-            echo "Failed to create an archive.";
-        }
+        Zip($src_dir, $fileName);
     }
 
     public function sendFileToDropbox($instal, $name)
@@ -95,21 +94,25 @@ class AutoBackupMaster {
 
         //Create folder in Dropbox
         $upload_dir = wp_upload_dir();
+        error_log("sendFileToDropbox 97 - upload dir: " . print_r($upload_dir));
+
         $path = $upload_dir['basedir'] . '/backups/'.$name;
+        error_log("sendFileToDropbox 100 - path: " . $path);
 
         clearstatcache(true, $path);
 
         if (!file_exists($path)) {
-            echo "Can't find a file: $path";
+            error_log("Can't find a file: $path");
             return;
         }
 
         $fp = fopen($path, 'rb');
 
         if (!$fp) {
-            echo "Can't open the file: $path";
+            error_log("Can't open the file: $path");
             return;
         }
+
 
         $size = filesize($path);
 
@@ -120,6 +123,7 @@ class AutoBackupMaster {
         }
 
         $path_in_db = $instal.'/'.$name;
+        error_log("sendFileToDropbox 126 - path in db: " . $path_in_db);
 
         if (!$drops->GetListFolder($access_token, $instal)) {
             $drops->CreateFolder($access_token, $instal);
