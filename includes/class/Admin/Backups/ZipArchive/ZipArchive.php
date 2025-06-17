@@ -38,8 +38,13 @@ function Zip($source, $destination){
                     $zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
                     error_log("Zip Archive 39 - add dir: " . $zip->addEmptyDir(str_replace($source . '/', '', $file . '/')));
                 }elseif (is_file($file) === true){
-                    $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
-                    error_log("Zip Archive 42 - add from string: " . $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file)));
+                    if (stripos($file, '.sql') === true) {
+                        $zip->addFile($file, str_replace($source . '/', '', $file));
+                        error_log("Zip Archive 43 - add file: " . $zip->addFile($file, str_replace($source . '/', '', $file)));
+                    } else {
+                        $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
+                        error_log("Zip Archive 45 - add from string: " . $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file)));
+                    }
                 }
             }
 
