@@ -54,5 +54,8 @@ function Zip($source, $destination){
         $zip->addFromString(basename($source), file_get_contents($source));
         error_log("Zip Archive 50 - add from string");
     }
-    return $zip->close();
+
+    $result = $zip->close();
+    error_log("ZipArchive close result: " . ($result ? 'success' : 'fail'));
+    return $result;
 }
