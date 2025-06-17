@@ -202,7 +202,7 @@ class Backups
 
                 <!--Section for display Form for creating backup manually -->
                 <section id="content-manual-backup">
-                    <h3>Manual backup 1.0.9</h3>
+                    <h3>Manual backup 1.1.0</h3>
                     You can create a backup manually by clicking on the button below
                     <form method="post">
                            <input type="hidden" name="send" id="send" value="1">
