@@ -20,7 +20,7 @@ class GitHubUpdater {
         add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_update']);
 
         $current_plugin_data = get_plugin_data($this->plugin_file);
-        error_log("GitHubUpdater current_plugin_data: " . print_r($current_plugin_data, true));
+        //error_log("GitHubUpdater current_plugin_data: " . print_r($current_plugin_data, true));
 
         add_filter('plugins_api', [$this, 'plugins_api'], 10, 3);
         add_filter('upgrader_post_install', [$this, 'after_install'], 10, 3);
@@ -55,8 +55,8 @@ class GitHubUpdater {
     }
 
     public function check_for_update($transient) {
-        error_log('GitHubUpdater check_for_update called');
-        error_log("GitHubUpdater plugin_file path: " . $this->plugin_file);
+        //error_log('GitHubUpdater check_for_update called');
+        //error_log("GitHubUpdater plugin_file path: " . $this->plugin_file);
 
         if (!function_exists('get_plugin_data')) {
             require_once(ABSPATH . 'wp-admin/includes/plugin.php');
@@ -72,19 +72,19 @@ class GitHubUpdater {
         ]);
 
         if (is_wp_error($response)) {
-            error_log('GitHubUpdater: wp_remote_get error');
+            //error_log('GitHubUpdater: wp_remote_get error');
             return $transient;
         }
 
         $code = wp_remote_retrieve_response_code($response);
         if ($code !== 200) {
-            error_log('GitHubUpdater: GitHub API returned code ' . $code);
+            //error_log('GitHubUpdater: GitHub API returned code ' . $code);
             return $transient;
         }
 
         $data = json_decode(wp_remote_retrieve_body($response), true);
         if (empty($data['content'])) {
-            error_log('GitHubUpdater: no content in GitHub API response');
+            //error_log('GitHubUpdater: no content in GitHub API response');
             return $transient;
         }
 
@@ -95,8 +95,8 @@ class GitHubUpdater {
         $current_plugin_data = get_plugin_data($this->plugin_file);
         $current_version = $current_plugin_data['Version'] ?? '';
 
-        error_log("GitHubUpdater: remote plugin data: " . print_r($plugin_data, true));
-        error_log("GitHubUpdater: current version = $current_version, remote version = $remote_version");
+        //error_log("GitHubUpdater: remote plugin data: " . print_r($plugin_data, true));
+        //error_log("GitHubUpdater: current version = $current_version, remote version = $remote_version");
 
         if ($remote_version && version_compare($remote_version, $current_version, '>')) {
             $transient->response[$this->plugin_slug] = (object)[

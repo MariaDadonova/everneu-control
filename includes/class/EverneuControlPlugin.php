@@ -55,7 +55,6 @@ class EverneuControlPlugin
                 'master',
                 ''
             );
-            error_log('GitHubUpdater instantiated new');
             delete_site_transient('update_plugins');
         });
         /* End of this part */
