@@ -36,14 +36,14 @@ function Zip($source, $destination){
 
                 if (is_dir($file) === true) {
                     $zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
-                    error_log("Zip Archive 39 - add dir: " . $zip->addEmptyDir(str_replace($source . '/', '', $file . '/')));
+                    error_log("Zip Archive 39 - add dir");
                 }elseif (is_file($file) === true){
-                    if (stripos($file, '.sql') === true) {
+                    if (stripos($file, '.sql') !== false) {
                         $zip->addFile($file, str_replace($source . '/', '', $file));
-                        error_log("Zip Archive 43 - add file: " . $zip->addFile($file, str_replace($source . '/', '', $file)));
+                        error_log("Zip Archive 43 - add file");
                     } else {
                         $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
-                        error_log("Zip Archive 45 - add from string: " . $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file)));
+                        error_log("Zip Archive 45 - add from string");
                     }
                 }
             }
@@ -52,7 +52,7 @@ function Zip($source, $destination){
         }
     }else if (is_file($source) === true){
         $zip->addFromString(basename($source), file_get_contents($source));
-        error_log("Zip Archive 50 - add from string: " . $zip->addFromString(basename($source), file_get_contents($source)));
+        error_log("Zip Archive 50 - add from string");
     }
     return $zip->close();
 }
