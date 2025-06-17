@@ -50,12 +50,29 @@ class AutoBackupMaster {
 
     public function createBackup($upload_dir, $src_dir, $name)
     {
-        $archive_dir = $upload_dir;
+        /*$archive_dir = $upload_dir;
 
         $zip = new ZipArchive();
         $fileName = $archive_dir.$name;
 
-        Zip($src_dir, $fileName);
+        Zip($src_dir, $fileName);*/
+
+        if (!file_exists($upload_dir)) {
+            mkdir($upload_dir, 0755, true);
+        }
+
+        $temp_path = sys_get_temp_dir() . '/' . $name;
+        $final_path = $upload_dir . $name;
+
+        if (Zip($src_dir, $temp_path)) {
+            if (rename($temp_path, $final_path)) {
+                echo "Archive successfully moved to ". $final_path;
+            } else {
+                echo "Failed move an archive from temporary folder.";
+            }
+        } else {
+            echo "Failed to create an archive.";
+        }
     }
 
     public function sendFileToDropbox($instal, $name)
