@@ -202,7 +202,7 @@ class Backups
 
                 <!--Section for display Form for creating backup manually -->
                 <section id="content-manual-backup">
-                    <h3>Manual backup 1.1.1</h3>
+                    <h3>Manual backup</h3>
                     You can create a backup manually by clicking on the button below
                     <form method="post">
                            <input type="hidden" name="send" id="send" value="1">
@@ -226,8 +226,8 @@ class Backups
 
                 <!--Section for display API's keys -->
                 <section id="content-api-keys">
-                    <p>
                       <?php
+                      /* Keys for app with Permission type: Scoped App (App Folder) */
                       if (isset($_POST['ec_dropbox_keys_submit'])) {
                           $app_key = sanitize_text_field($_POST['app_key']);
                           $app_secret = sanitize_text_field($_POST['app_secret']);
@@ -267,9 +267,13 @@ class Backups
                           $refresh_token = $app_key = $app_secret = $access_code = '';
                       }
 
+
                       ?>
 
-                    <h3>API keys</h3>
+                <div style="display: flex; gap: 20px; width: 100%;">
+                  <div style="width: 100%;">
+                    <h3>DropBox keys</h3>
+                    <p>Permission type: Scoped App (App Folder)</p>
                     <!-- inert disabled form -->
                     <!--<form method="post" inert="" class="ev-submit-form">-->
                     <form method="post" class="ev-submit-form">
@@ -308,8 +312,8 @@ class Backups
                         <i>*All keys encrypt after saving</i><br>
                         <br><input type="submit" name="ec_dropbox_keys_submit" class="button button-primary" value="Save">
                     </form>
-
-                    </p>
+                  </div>
+                </div>
                 </section>
                <!-- <section id="content-schedule-backup">
                     <p>
@@ -398,6 +402,38 @@ class Backups
                     <h3>Backups history</h3>
                     <p>
                         <?php
+
+                        //Authorization
+                        $dropbox_settings = get_option('ev_dropbox_settings');
+                        if (!empty($dropbox_settings) && is_string($dropbox_settings)) {
+                            $dropbox_settings = json_decode($dropbox_settings, true);
+                        }
+
+                        $refresh_token = Encryption::decrypt($dropbox_settings['refresh_token']);
+                        $app_key = Encryption::decrypt($dropbox_settings['app_key']);
+                        $app_secret = Encryption::decrypt($dropbox_settings['app_secret']);
+                        $access_code = Encryption::decrypt($dropbox_settings['access_code']);
+
+                        $drops = new DropboxAPI($app_key, $app_secret, $access_code);
+
+                        //Access token
+                        $access_token = $drops->curlRefreshToken($refresh_token);
+
+                        $instal =  $_SERVER['HTTP_HOST'];
+
+                        if (!$drops->GetListFolder($access_token, $instal)) {
+                            $drops->CreateFolder($access_token, $instal);
+                        }
+
+                        $linkData = $drops->getOrCreateSharedLinkForFolder($access_token, '/Secondary Backups/'.$instal);
+
+                        if ($linkData !== false) {
+                            echo 'Link to folder with backups: <a href="' . $linkData . '" target="_blank">Click here</a>';
+                        } else {
+                            echo 'Error creating link.';
+                        }
+
+
                         // Display zip size in gb, mb, kb depends on size from bytes
                         function formatSizeUnits($bytes)
                         {
@@ -444,7 +480,13 @@ class Backups
                                 $rrr.="<td>".$log->name."</td>";
                                 $rrr.="<td>".formatSizeUnits($log->size)."</td>";
                                 $rrr.="<td>".$log->date."</td>";
-                                $rrr.="<td>".$log->path."</td>";
+                                $link_to_file = $drops->getOrCreateSharedLinkForFile($access_token, $log->path);
+                                if ($link_to_file) {
+                                    $rrr.="<td><a href='". $link_to_file ."' target='_blank'>Download .zip</a></td>";
+                                } else {
+                                    $rrr.="<td>No file in folder</td>";
+                                }
+
                                 $rrr.="</tr>";
                             }
                         } else {
