@@ -10,6 +10,8 @@ use ZipArchive;
 include_once __DIR__ . '/ZipArchive/ZipArchive.php';
 include_once __DIR__ . '/DropboxAPIClient/DropboxAPI.php';
 include_once __DIR__ . '/SqlDump/MySql.php';
+include_once WP_PLUGIN_DIR . '/everneu-control/includes/class/Admin/Settings/SiteMap/SiteMap.php';
+
 
 /**
  * General purpose:
@@ -131,6 +133,17 @@ class AutoBackupMaster {
 
         //Send file to dropbox
         $drops->SendFile($access_token, $path_in_db, $fp, $size);
+
+        $linkData = $drops->getOrCreateSharedLinkForFolder($access_token, '/Secondary Backups/'.$instal);
+
+        if ($linkData !== false) {
+            echo 'Link to folder: ' . $linkData;
+            sendtoGoogleUrls($instal, $linkData);
+        } else {
+            echo 'Error creating link.';
+        }
+
+
     }
 
 }
