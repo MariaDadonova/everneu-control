@@ -16,7 +16,7 @@ class UpdaterForm {
     }
 
 
-    public function display_svg_ui() {
+    public function display_updater_form_ui() {
         ?>
 
         <h3>API GitHub token to upload updates from repo</h3>
