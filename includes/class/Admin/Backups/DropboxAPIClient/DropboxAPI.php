@@ -230,6 +230,128 @@ class DropboxAPI
         return $response;
     }
 
+    public function moveFile($access_token, $from_path, $to_path) {
+        $ch = curl_init("https://api.dropboxapi.com/2/files/move_v2");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POST, 1);
+
+        $post_fields = json_encode([
+            "from_path" => $from_path,
+            "to_path" => $to_path,
+            "autorename" => true
+        ]);
+
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Authorization: Bearer " . $access_token,
+            "Content-Type: application/json"
+        ]);
+
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return json_decode($response, true);
+    }
+
+    public function getOrCreateSharedLinkForFolder($access_token, $folder_path) {
+        // Try to get an existing link
+        $url = "https://api.dropboxapi.com/2/sharing/list_shared_links";
+        $headers = [
+            'Authorization: Bearer ' . $access_token,
+            'Content-Type: application/json'
+        ];
+
+        $data = [
+            "path" => $folder_path,
+            "direct_only" => true
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        $result = json_decode($response, true);
+
+        if (!empty($result['links']) && isset($result['links'][0]['url'])) {
+            return $result['links'][0]['url'];
+        }
+
+        // If there is no link, create a new one
+        $create_url = "https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings";
+        $create_data = [
+            "path" => $folder_path,
+            "settings" => ["requested_visibility" => "public"]
+        ];
+
+        $ch = curl_init($create_url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($create_data));
+        $create_response = curl_exec($ch);
+        curl_close($ch);
+
+        $create_result = json_decode($create_response, true);
+
+        if (isset($create_result['url'])) {
+            return $create_result['url'];
+        } else {
+            error_log('Dropbox: Error creating a link to a folder: ' . json_encode($create_result));
+            return false;
+        }
+    }
+
+
+    public function getOrCreateSharedLinkForFile($access_token, $file_path) {
+        $url = "https://api.dropboxapi.com/2/sharing/list_shared_links";
+        $headers = [
+            'Authorization: Bearer ' . $access_token,
+            'Content-Type: application/json'
+        ];
+
+        $data = [
+            "path" => $file_path,
+            "direct_only" => true
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        $result = json_decode($response, true);
+
+        if (!empty($result['links']) && isset($result['links'][0]['url'])) {
+            return str_replace('?dl=0', '?dl=1', $result['links'][0]['url']); // прямое скачивание
+        }
+
+        // Создание новой ссылки
+        $create_url = "https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings";
+        $create_data = [
+            "path" => $file_path,
+            "settings" => ["requested_visibility" => "public"]
+        ];
+
+        $ch = curl_init($create_url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($create_data));
+        $create_response = curl_exec($ch);
+        curl_close($ch);
+
+        $create_result = json_decode($create_response, true);
+
+        return isset($create_result['url']) ? str_replace('?dl=0', '?dl=1', $create_result['url']) : false;
+    }
+
 
 
 }
