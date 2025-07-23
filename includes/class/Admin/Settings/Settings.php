@@ -39,6 +39,7 @@ class Settings
         require_once __DIR__ . '/SVG/AllowSVGUpload.php';
         //require_once __DIR__. '/SiteMap/SiteMapClass.php';
         require_once __DIR__ . '/Updater/UpdaterForm.php';
+        require_once __DIR__ . '/GoogleAPIKey/KeyForm.php';
         wp_enqueue_style( 'evn-client-style', EVN_URL . 'assets/css/settings_tabs_styles.css' );
         ?>
 
@@ -53,6 +54,8 @@ class Settings
                 <label for="svg">SVG</label>
                 <input id="github" type="radio" name="tabs">
                 <label for="github">Updates</label>
+                <input id="googleapi" type="radio" name="tabs">
+                <label for="googleapi">Google API</label>
                  <!--<section id="content-sitemap">
                      <p>--><?php /*new SiteMap\SiteMapClass;*/ ?><!--</p>
                 </section>-->
@@ -65,8 +68,14 @@ class Settings
                 <section id="content-github">
                     <p><?php
                         $github_form = new Updater\UpdaterForm;
-                        $github_form->display_svg_ui();
+                        $github_form->display_updater_form_ui();
                     ?></p>
+                </section>
+                <section id="content-googleapi">
+                    <p><?php
+                        $google_form = new GoogleAPIKey\KeyForm;
+                        $google_form->display_google_form_ui();
+                        ?></p>
                 </section>
             </div>
         </div>
