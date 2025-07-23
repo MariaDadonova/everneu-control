@@ -3,9 +3,72 @@ require  'vendor/autoload.php';
 use Google\Spreadsheet\DefaultServiceRequest;
 use Google\Spreadsheet\ServiceRequestFactory;
 
+use EVN\Helpers\Encryption;
 
+$path = get_option('ev_google_service_key');
+//decrypt url to json file
+if (!empty($path) && is_string($path)) {
+    $path = json_decode($path, true);
+}
+$ecp_url = Encryption::decrypt($path['EVN_GOOGLE_SERVICE_KEY']);
 $googleAccountKeyFilePath = __DIR__ . '/service_key.json';
 putenv('GOOGLE_APPLICATION_CREDENTIALS=' . $googleAccountKeyFilePath);
+
+/**Method for create a google sheets with links to folder with backups*/
+function sendtoGoogleUrls($site, $url) {
+    $client = new Google_Client();
+    $client->useApplicationDefaultCredentials();
+    $client->addScope('https://www.googleapis.com/auth/spreadsheets');
+
+    $service = new Google_Service_Sheets($client);
+    $spreadsheetId = '1HzlLxrFIQuR3UScYfe1aNgWd_x2YPF_v_XRFUIYayT4';
+    $sheetName = 'Installs';
+
+    //Checking and adding headers
+    $headerRange = $sheetName . '!A1:B1';
+    $response = $service->spreadsheets_values->get($spreadsheetId, $headerRange);
+    $headerValues = $response->getValues();
+
+    $expectedHeaders = ['Site', 'URL'];
+    if (empty($headerValues) || $headerValues[0] !== $expectedHeaders) {
+        $headerRangeObject = new Google_Service_Sheets_ValueRange([
+            'values' => [$expectedHeaders]
+        ]);
+        $service->spreadsheets_values->update(
+            $spreadsheetId,
+            $headerRange,
+            $headerRangeObject,
+            ['valueInputOption' => 'RAW']
+        );
+    }
+
+    //Getting all the rows (to check for duplicates)
+    $dataRange = $sheetName . '!A2:B'; //A2 — skip the title
+    $existingResponse = $service->spreadsheets_values->get($spreadsheetId, $dataRange);
+    $existingRows = $existingResponse->getValues();
+
+    foreach ($existingRows as $row) {
+        if (isset($row[0], $row[1]) && $row[0] === $site && $row[1] === $url) {
+            //There is already such an entry — do not add it
+            return;
+        }
+    }
+
+    //Adding a new line
+    $valueRange = new Google_Service_Sheets_ValueRange([
+        'values' => [[$site, $url]]
+    ]);
+
+    $service->spreadsheets_values->append(
+        $spreadsheetId,
+        $sheetName . '!A:B',
+        $valueRange,
+        [
+            'valueInputOption' => 'USER_ENTERED',
+            'insertDataOption' => 'INSERT_ROWS'
+        ]
+    );
+}
 
 
 /**Method for create a google sheets*/
