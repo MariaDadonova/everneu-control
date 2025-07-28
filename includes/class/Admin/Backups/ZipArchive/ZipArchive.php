@@ -44,13 +44,13 @@ function Zip($source, $destination){
                 $zip->addEmptyDir($localName);
                 error_log("Zip Archive - added dir: $localName");
             } elseif (is_file($file)) {
-                if (stripos($file, '.sql') !== false) {
+                /*if (stripos($file, '.sql') !== false) {*/
                     $zip->addFile($file, $localName);
                     error_log("Zip Archive - added file: $localName");
-                } else {
+                /*} else {
                     $zip->addFromString($localName, file_get_contents($file));
                     error_log("Zip Archive - added from string: $localName");
-                }
+                }*/
             }
         }
     } elseif (is_file($source)) {

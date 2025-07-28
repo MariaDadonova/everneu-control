@@ -67,12 +67,7 @@ class AutoBackupMaster {
 
     public function createBackup($upload_dir, $src_dir, $name)
     {
-        add_filter('upload_dir', function ($dirs) {
-            return wp_get_upload_dir();
-        });
-
         $archive_dir = $upload_dir;
-        error_log("createBackup 69 - Archive dir: " . $archive_dir);
 
         if (!file_exists($archive_dir)) {
             if (!mkdir($archive_dir, 0755, true)) {
@@ -89,7 +84,6 @@ class AutoBackupMaster {
         }
 
         $fileName = $archive_dir . $name;
-        error_log("createBackup 72 - fileName: " . $fileName);
 
         Zip($src_dir, $fileName);
     }
