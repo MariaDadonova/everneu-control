@@ -13,33 +13,40 @@ function Zip($source, $destination){
     $source = str_replace('\\', '/', realpath($source));
 
     if (is_dir($source) === true){
-        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source), RecursiveIteratorIterator::SELF_FIRST);
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
 
         foreach ($files as $file){
-            $file = str_replace('\\', '/', $file);
+            $filePath = str_replace('\\', '/', realpath($file));
+            if (!$filePath) continue;
 
-            // Ignore "." and ".." folders
-            if( in_array(substr($file, strrpos($file, '/')+1), array('.', '..')) )
+            $relativePath = str_replace($source . '/', '', $filePath);
+
+            if (
+                stripos($relativePath, 'backups') !== false ||
+                stripos($relativePath, '.git') !== false ||
+                stripos($relativePath, '.idea') !== false ||
+                $relativePath === 'wp-content/mysql.sql'
+            ) {
                 continue;
-
-            $file = realpath($file);
-            $file = str_replace('\\', '/', $file);
-
-            if((stripos($file, 'backups') === false) && (stripos($file, '.git') === false) && (stripos($file, '.idea') === false) /*&& (stripos($file, '.sql') === false)*/){
-                //$log = date('Y-m-d H:i:s') . ' log time';
-                //file_put_contents(__DIR__ . '/log.txt', stripos($file, 'uploads').' '.$file.' '.$log . PHP_EOL, FILE_APPEND);
-
-                if (is_dir($file) === true) {
-                    $zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
-                }elseif (is_file($file) === true){
-                    $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
-                }
             }
 
-
+            if (is_dir($filePath)) {
+                $zip->addEmptyDir($relativePath);
+            } elseif (is_file($filePath)) {
+                if (substr($filePath, -4) === '.sql') {
+                    $zip->addFile($filePath, $relativePath); // efficient for large files
+                } else {
+                    $zip->addFromString($relativePath, file_get_contents($filePath));
+                }
+            }
         }
-    }else if (is_file($source) === true){
+
+    } elseif (is_file($source) === true){
         $zip->addFromString(basename($source), file_get_contents($source));
     }
+
     return $zip->close();
 }
