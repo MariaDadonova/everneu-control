@@ -70,7 +70,21 @@ class AutoBackupMaster {
         $archive_dir = $upload_dir;
         error_log("createBackup 69 - Archive dir: " . $archive_dir);
 
-        $fileName = $archive_dir.$name;
+        if (!file_exists($archive_dir)) {
+            if (!mkdir($archive_dir, 0755, true)) {
+                error_log("createBackup ERROR: Failed to create archive dir: " . $archive_dir);
+                return;
+            } else {
+                error_log("createBackup: Created archive dir: " . $archive_dir);
+            }
+        }
+
+        if (!is_writable($archive_dir)) {
+            error_log("createBackup ERROR: Archive dir is not writable: " . $archive_dir);
+            return;
+        }
+
+        $fileName = $archive_dir . $name;
         error_log("createBackup 72 - fileName: " . $fileName);
 
         Zip($src_dir, $fileName);
