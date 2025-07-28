@@ -1,6 +1,16 @@
 <?php
 
 function Zip($source, $destination) {
+    // Принудительно укажем sys_temp_dir, если не задан или не существует
+    if (!ini_get('sys_temp_dir') || !is_dir(ini_get('sys_temp_dir'))) {
+        $customTmp = ABSPATH . 'wp-content/tmp';
+        if (!is_dir($customTmp)) {
+            mkdir($customTmp, 0775, true); // создаём если нет
+        }
+        ini_set('sys_temp_dir', $customTmp);
+        error_log("Zip: sys_temp_dir set to $customTmp");
+    }
+
     $source = realpath(ABSPATH . 'wp-content/wp_everneusandbox_wp_.sql');
     $destination = ABSPATH . 'wp-content/backups/test.zip';
 
