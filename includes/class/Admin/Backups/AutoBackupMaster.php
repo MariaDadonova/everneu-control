@@ -13,6 +13,7 @@ include_once __DIR__ . '/SqlDump/MySql.php';
 include_once WP_PLUGIN_DIR . '/everneu-control/includes/class/Admin/Settings/SiteMap/SiteMap.php';
 
 
+
 /**
  * General purpose:
  *
@@ -25,47 +26,122 @@ include_once WP_PLUGIN_DIR . '/everneu-control/includes/class/Admin/Settings/Sit
 class AutoBackupMaster {
 
     public function __construct() {
+        $this->runBackup();
+    }
+
+    public function runBackup() {
         $instal = $_SERVER['HTTP_HOST'];
-
         $upload = wp_upload_dir();
-        error_log("wp_upload_dir: " . print_r($upload, true));
-
-        $upload_dir = $upload['basedir'];
-        error_log("Upload dir: " . $upload_dir);
-
-        $backup_dir = $upload_dir . '/backups/';
-        error_log("Upload dir 2: " . $backup_dir);
+        $backup_dir = $upload['basedir'] . '/backups/';
 
         if (!file_exists($backup_dir)) {
             mkdir($backup_dir, 0755, true);
         }
 
+        $tmp_backup_dir = sys_get_temp_dir() . '/' . str_replace('.', '_', $instal) . date('_Y-m-d_H-i-s');
+
+        error_log("Tmp backup dir: $tmp_backup_dir");
+
+        if (!mkdir($tmp_backup_dir, 0755, true) && !is_dir($tmp_backup_dir)) {
+            error_log("Failed to create temp backup directory: $tmp_backup_dir");
+            return;
+        }
+
         $src_dir = realpath($_SERVER['DOCUMENT_ROOT']);
         error_log("Src dir: " . $src_dir);
 
-        $name = str_replace('.', '_', $instal) . date('Y-m-d_H-i-s') . ".zip";
-        error_log("Name: " . $name);
+        $this->copyDir($src_dir, $tmp_backup_dir, ['backups', '.git', '.idea', 'node_modules', 'tmp', 'logs', 'vendor']);
 
         $this->createSQLdump();
 
-        clearstatcache(true, $backup_dir);
-        error_log('Is backups dir writable? ' . (is_writable($backup_dir) ? 'yes' : 'no'));
+        $zip_name = str_replace('.', '_', $instal) . date('Y-m-d_H-i-s') . ".zip";
+        $zip_path = $backup_dir . $zip_name;
 
-        $perms = fileperms($backup_dir);
-        error_log('backups dir perms: ' . substr(sprintf('%o', $perms), -4));
+        $zip_result = $this->zipDirectory($tmp_backup_dir, $zip_path);
 
-        if (function_exists('posix_getpwuid')) {
-            $owner = posix_getpwuid(fileowner($backup_dir));
-            error_log('backups dir owner: ' . print_r($owner, true));
+        if ($zip_result) {
+            error_log("Backup created: $zip_path");
+            $this->sendFileToDropbox($instal, $zip_name);
         } else {
-            error_log('posix_getpwuid not available');
+            error_log("Backup failed");
         }
 
-        //Creating a backup
-        $this->createBackup($backup_dir, $src_dir, $name);
+        $this->deleteDir($tmp_backup_dir);
+    }
 
-        //Send file to Dropbox
-        $this->sendFileToDropbox($instal, $name);
+    private function copyDir(string $src, string $dst, array $excludeDirs = []) {
+        $dir = opendir($src);
+        @mkdir($dst, 0755, true);
+
+        while(false !== ($file = readdir($dir))) {
+            if ($file == '.' || $file == '..') continue;
+            if (in_array($file, $excludeDirs)) continue;
+
+            $srcPath = $src . DIRECTORY_SEPARATOR . $file;
+            $dstPath = $dst . DIRECTORY_SEPARATOR . $file;
+
+            if (is_dir($srcPath)) {
+                $this->copyDir($srcPath, $dstPath, $excludeDirs);
+            } else {
+                copy($srcPath, $dstPath);
+            }
+        }
+        closedir($dir);
+    }
+
+    private function zipDirectory(string $source, string $destination) {
+        require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+
+        $source = realpath($source);
+        if (!$source || !file_exists($source)) {
+            error_log("PclZip: Source not found: $source");
+            return false;
+        }
+
+        $archive = new PclZip($destination);
+
+        $files = [];
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source), RecursiveIteratorIterator::LEAVES_ONLY);
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) continue;
+            $filePath = $file->getRealPath();
+            $relativePath = substr($filePath, strlen($source) + 1);
+
+            $files[] = [
+                PCLZIP_ATT_FILE_NAME => $filePath,
+                PCLZIP_ATT_FILE_NEW_FULL_NAME => $relativePath,
+            ];
+            error_log("PclZip - adding file: $relativePath");
+        }
+
+        if (empty($files)) {
+            error_log("PclZip: No files to archive");
+            return false;
+        }
+
+        $result = $archive->create($files);
+
+        if ($result == 0) {
+            error_log("PclZip error: " . $archive->errorInfo(true));
+            return false;
+        }
+
+        return true;
+    }
+
+    private function deleteDir(string $dirPath) {
+        if (!is_dir($dirPath)) return;
+        $files = array_diff(scandir($dirPath), ['.', '..']);
+        foreach ($files as $file) {
+            $fullPath = $dirPath . DIRECTORY_SEPARATOR . $file;
+            if (is_dir($fullPath)) {
+                $this->deleteDir($fullPath);
+            } else {
+                @unlink($fullPath);
+            }
+        }
+        @rmdir($dirPath);
+        error_log("Deleted temp backup directory: $dirPath");
     }
 
     public function createSQLdump()
