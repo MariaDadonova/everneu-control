@@ -29,39 +29,22 @@ function Zip($source, $destination) {
             if ($basename === '.' || $basename === '..') continue;
 
             $realPath = str_replace('\\', '/', realpath($file));
-            if (!$realPath) continue;
+            if (!$realPath || is_dir($realPath)) continue;
 
-            // Исключаем ненужные директории
             if (stripos($realPath, 'backups') !== false || stripos($realPath, '.git') !== false || stripos($realPath, '.idea') !== false) {
                 continue;
             }
 
-            // Обрезаем путь до относительного от ABSPATH
             $localName = ltrim(str_replace(ABSPATH, '', $realPath), '/');
 
-            if (is_dir($realPath)) {
-                // PclZip не требует явного добавления директорий
-                continue;
-            }
+            $file_list[] = [
+                PCLZIP_ATT_FILE_NAME => $realPath,
+                PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
+            ];
 
-            if (stripos($realPath, '.sql') !== false) {
-                $file_list[] = [
-                    PCLZIP_ATT_FILE_NAME => $realPath,
-                    PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
-                ];
-                error_log("PclZip - Added .sql: $localName");
-            } else {
-                $tmp_path = tempnam(sys_get_temp_dir(), 'pclzip');
-                file_put_contents($tmp_path, file_get_contents($realPath));
-                $file_list[] = [
-                    PCLZIP_ATT_FILE_NAME => $tmp_path,
-                    PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
-                ];
-                error_log("PclZip - Added from string: $localName");
-            }
+            error_log("PclZip - Added: $localName");
         }
     } elseif (is_file($source)) {
-        // Только один файл
         $localName = ltrim(str_replace(ABSPATH, '', $source), '/');
         $file_list[] = [
             PCLZIP_ATT_FILE_NAME => $source,
