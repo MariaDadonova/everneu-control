@@ -11,6 +11,7 @@ include_once __DIR__ . '/ZipArchive/ZipArchive.php';
 include_once __DIR__ . '/DropboxAPIClient/DropboxAPI.php';
 include_once __DIR__ . '/SqlDump/MySql.php';
 include_once WP_PLUGIN_DIR . '/everneu-control/includes/class/Admin/Settings/SiteMap/SiteMap.php';
+require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
 
 
 
@@ -90,8 +91,6 @@ class AutoBackupMaster {
     }
 
     private function zipDirectory(string $source, string $destination) {
-        require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
-
         $source = realpath($source);
         if (!$source || !file_exists($source)) {
             error_log("PclZip: Source not found: $source");
