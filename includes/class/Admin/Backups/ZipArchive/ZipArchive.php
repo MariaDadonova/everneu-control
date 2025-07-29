@@ -1,13 +1,12 @@
 <?php
 
-function Zip($source, $final_destination){
+function Zip($source, $final_destination) {
     if (!extension_loaded('zip') || !file_exists($source)) {
-        error_log("Zip: Zip extension not loaded or source doesn't exist");
+        error_log("Zip: Extension not loaded or source doesn't exist");
         return false;
     }
 
-    $source = str_replace('\\', '/', realpath($source));
-    $tmp_destination = sys_get_temp_dir() . '/' . basename($final_destination);
+    $tmp_destination = $final_destination . '.tmp';
 
     error_log("Zip Archive - source: $source");
     error_log("Zip Archive - tmp destination: $tmp_destination");
@@ -17,6 +16,8 @@ function Zip($source, $final_destination){
         error_log("Zip: Cannot open temp archive for writing");
         return false;
     }
+
+    $source = str_replace('\\', '/', realpath($source));
 
     if (is_dir($source)) {
         $files = new RecursiveIteratorIterator(
@@ -38,9 +39,7 @@ function Zip($source, $final_destination){
                 stripos($realPath, '.git') !== false ||
                 stripos($realPath, '.idea') !== false ||
                 preg_match('/\.(zip|log|tmp|gz)$/i', $realPath)
-            ) {
-                continue;
-            }
+            ) continue;
 
             $localName = ltrim(str_replace($source . '/', '', $realPath), '/');
 
@@ -66,7 +65,7 @@ function Zip($source, $final_destination){
     }
 
     if (!@rename($tmp_destination, $final_destination)) {
-        error_log("Zip Archive - failed to move archive to final destination");
+        error_log("Zip Archive - failed to rename temp archive to final destination");
         return false;
     }
 
