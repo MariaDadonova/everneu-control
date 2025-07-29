@@ -46,7 +46,10 @@ class AutoBackupMaster {
         $this->createSQLdump();
 
         //Create a backup
-        $this->createBackup($upload_dir, $src_dir, $name);
+        //$this->createBackup($upload_dir, $src_dir, $name);
+
+        $src_sql_file = ABSPATH . 'wp-content/wp_everneusandbox_wp_.sql';
+        Zip($src_sql_file, $name);
 
         //Send file to DropBox
         $this->sendFileToDropbox($instal, $name);
