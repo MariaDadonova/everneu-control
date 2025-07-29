@@ -1,98 +1,64 @@
 <?php
 
-require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+function Zip($source, $destination){
+    if (!extension_loaded('zip') || !file_exists($source)) {
+        return false;
+    }
 
-function Zip($source, $destination) {
+    $zip = new ZipArchive();
+    if (!$zip->open($destination, ZIPARCHIVE::CREATE)) {
+        return false;
+    }
+
     $source = str_replace('\\', '/', realpath($source));
-    $destination = str_replace('\\', '/', $destination);
+    error_log("Zip Archive 14 - source: " . $source);
 
-    error_log("PclZip - Source: $source");
-    error_log("PclZip - Destination: $destination");
+    if (is_dir($source) === true){
+        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source), RecursiveIteratorIterator::SELF_FIRST);
 
-    if (!file_exists($source)) {
-        error_log("PclZip: Source does not exist: $source");
-        return false;
-    }
-
-    if (strpos($destination, $source) === 0) {
-        error_log("PclZip: Destination is inside source, skipping to avoid recursive archive.");
-        return false;
-    }
-
-    $archive = new PclZip($destination);
-    $file_list = [];
-
-    if (is_dir($source)) {
-        $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($source),
-            RecursiveIteratorIterator::SELF_FIRST
-        );
-
-        foreach ($files as $file) {
+        foreach ($files as $file){
             $file = str_replace('\\', '/', $file);
-            $basename = basename($file);
-            if ($basename === '.' || $basename === '..') continue;
 
-            $realPath = str_replace('\\', '/', realpath($file));
-            if (!$realPath) continue;
+            error_log("Zip Archive 22 - file: " . $file);
 
-            if (
-                stripos($realPath, '/backups/') !== false ||
-                stripos($realPath, '.git') !== false ||
-                stripos($realPath, '.idea') !== false ||
-                preg_match('/\.(zip|log|tmp|gz)$/i', $realPath)
-            ) {
+            // Ignore "." and ".." folders
+            if( in_array(substr($file, strrpos($file, '/')+1), array('.', '..')) )
                 continue;
+
+            $file = realpath($file);
+            $file = str_replace('\\', '/', $file);
+
+            error_log("Zip Archive 31 - file: " . $file);
+
+            if((stripos($file, 'backups') === false) &&
+                (stripos($file, '.git') === false) &&
+                (stripos($file, '.idea') === false) &&
+                !preg_match('/\.(zip|log|tmp|gz)$/i', $file) /*&& (stripos($file, '.sql') === false)*/) {
+                //$log = date('Y-m-d H:i:s') . ' log time';
+                //file_put_contents(__DIR__ . '/log.txt', stripos($file, 'uploads').' '.$file.' '.$log . PHP_EOL, FILE_APPEND);
+
+                if (is_dir($file) === true) {
+                    $zip->addEmptyDir(str_replace($source . '/', '', $file . '/'));
+                    error_log("Zip Archive 39 - add dir");
+                }elseif (is_file($file) === true){
+                    if (stripos($file, '.sql') !== false) {
+                        $zip->addFile($file, str_replace($source . '/', '', $file));
+                        error_log("Zip Archive 43 - add file");
+                    } else {
+                        $zip->addFromString(str_replace($source . '/', '', $file), file_get_contents($file));
+                        error_log("Zip Archive 45 - add from string");
+                    }
+                }
             }
 
-            $localName = ltrim(str_replace(ABSPATH, '', $realPath), '/');
 
-            if (is_dir($realPath)) {
-                continue;
-            }
-
-            if (stripos($realPath, '.sql') !== false) {
-                $file_list[] = [
-                    PCLZIP_ATT_FILE_NAME => $realPath,
-                    PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
-                ];
-                error_log("PclZip - Added .sql: $localName");
-            } else {
-                $tmp_path = tempnam(sys_get_temp_dir(), 'pclzip');
-                file_put_contents($tmp_path, file_get_contents($realPath));
-                $file_list[] = [
-                    PCLZIP_ATT_FILE_NAME => $tmp_path,
-                    PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
-                ];
-                error_log("PclZip - Added: $localName");
-            }
         }
-    } elseif (is_file($source)) {
-        $localName = ltrim(str_replace(ABSPATH, '', $source), '/');
-
-        if (preg_match('/\.(zip|log|tmp|gz)$/i', $source)) {
-            error_log("PclZip - Skipped excluded file: $source");
-            return false;
-        }
-
-        $file_list[] = [
-            PCLZIP_ATT_FILE_NAME => $source,
-            PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
-        ];
-        error_log("PclZip - Added single file: $localName");
+    }else if (is_file($source) === true){
+        $zip->addFromString(basename($source), file_get_contents($source));
+        error_log("Zip Archive 50 - add from string");
     }
 
-    if (empty($file_list)) {
-        error_log("PclZip: No files to archive.");
-        return false;
-    }
-
-    $result = $archive->create($file_list);
-    if ($result == 0) {
-        error_log("PclZip error: " . $archive->errorInfo(true));
-        return false;
-    }
-
-    error_log("PclZip - Archive create result: success");
-    return true;
+    $result = $zip->close();
+    error_log("ZipArchive close result: " . ($result ? 'success' : 'fail'));
+    return $result;
 }
