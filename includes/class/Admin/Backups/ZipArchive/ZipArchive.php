@@ -1,40 +1,79 @@
 <?php
 
+require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+
 function Zip($source, $destination) {
-    // Принудительно укажем sys_temp_dir, если не задан или не существует
-    if (!ini_get('sys_temp_dir') || !is_dir(ini_get('sys_temp_dir'))) {
-        $customTmp = ABSPATH . 'wp-content/tmp';
-        if (!is_dir($customTmp)) {
-            mkdir($customTmp, 0775, true); // создаём если нет
+    $source = str_replace('\\', '/', realpath($source));
+    $destination = str_replace('\\', '/', $destination);
+
+    error_log("PclZip 14 - source: " . $source);
+
+    if (!file_exists($source)) {
+        error_log("PclZip: Source does not exist: $source");
+        return false;
+    }
+
+    $archive = new PclZip($destination);
+    $file_list = [];
+
+    if (is_dir($source)) {
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($source),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($files as $file) {
+            $file = str_replace('\\', '/', $file);
+            error_log("PclZip 22 - file: " . $file);
+
+            $basename = basename($file);
+            if ($basename === '.' || $basename === '..') continue;
+
+            $realPath = str_replace('\\', '/', realpath($file));
+
+            error_log("PclZip 31 - file: " . $realPath);
+
+            if (stripos($realPath, 'backups') !== false || stripos($realPath, '.git') !== false || stripos($realPath, '.idea') !== false) {
+                continue;
+            }
+
+            $localName = str_replace($source . '/', '', $realPath);
+
+            if (is_dir($realPath)) {
+                // PclZip doesn’t need to explicitly add directories
+                continue;
+            }
+
+            if (stripos($realPath, '.sql') !== false) {
+                $file_list[] = [
+                    PCLZIP_ATT_FILE_NAME => $realPath,
+                    PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
+                ];
+                error_log("PclZip 43 - added .sql file: $localName");
+            } else {
+                $tmp_path = tempnam(sys_get_temp_dir(), 'pclzip');
+                file_put_contents($tmp_path, file_get_contents($realPath));
+                $file_list[] = [
+                    PCLZIP_ATT_FILE_NAME => $tmp_path,
+                    PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
+                ];
+                error_log("PclZip 45 - added from string: $localName");
+            }
         }
-        ini_set('sys_temp_dir', $customTmp);
-        error_log("Zip: sys_temp_dir set to $customTmp");
+    } else if (is_file($source)) {
+        $file_list[] = [
+            PCLZIP_ATT_FILE_NAME => $source,
+            PCLZIP_ATT_FILE_NEW_SHORT_NAME => basename($source)
+        ];
+        error_log("PclZip 50 - added single file: " . basename($source));
     }
 
-    $source = realpath(ABSPATH . 'wp-content/wp_everneusandbox_wp_.sql');
-    $destination = ABSPATH . 'wp-content/backups/test.zip';
-
-    if (!extension_loaded('zip') || !file_exists($source)) {
-        error_log("Zip: extension not loaded or source not found: $source");
+    if (empty($file_list)) {
+        error_log("PclZip: No files to archive.");
         return false;
     }
 
-    $zip = new ZipArchive();
-    if (!$zip->open($destination, ZipArchive::CREATE | ZipArchive::OVERWRITE)) {
-        error_log("Zip: failed to open destination: $destination");
-        return false;
-    }
-
-    $basename = basename($source);
-
-    if ($zip->addFile($source, $basename)) {
-        error_log("Zip: added $basename");
-    } else {
-        error_log("Zip: failed to add $basename");
-    }
-
-    $closed = $zip->close();
-    error_log("Zip: closed with result: " . ($closed ? 'success' : 'fail'));
-
-    return $closed;
+    $result = $archive->create($file_list);
+    error_log("PclZip close result: " . ($result ? 'success' : 'fail'));
+    return $result !== 0;
 }
