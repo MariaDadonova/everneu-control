@@ -2,7 +2,7 @@
 
 require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
 
-function ZipWithPcl($source, $destination) {
+function Zip($source, $destination) {
     $source = realpath($source);
     if (!$source || !file_exists($source)) {
         error_log("PclZip: Source not found: $source");
