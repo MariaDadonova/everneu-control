@@ -11,8 +11,7 @@ if (!empty($path) && is_string($path)) {
     $path = json_decode($path, true);
 }
 $ecp_url = Encryption::decrypt($path['EVN_GOOGLE_SERVICE_KEY']);
-$googleAccountKeyFilePath = __DIR__ . '/service_key.json';
-putenv('GOOGLE_APPLICATION_CREDENTIALS=' . $googleAccountKeyFilePath);
+putenv('GOOGLE_APPLICATION_CREDENTIALS=' . $ecp_url);
 
 /**Method for create a google sheets with links to folder with backups*/
 function sendtoGoogleUrls($site, $url) {
