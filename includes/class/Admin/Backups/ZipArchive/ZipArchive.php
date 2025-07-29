@@ -1,74 +1,62 @@
 <?php
 
-function Zip($source, $final_destination) {
-    if (!extension_loaded('zip') || !file_exists($source)) {
-        error_log("Zip: Extension not loaded or source doesn't exist");
+require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
+
+function ZipWithPcl($source, $destination) {
+    $source = realpath($source);
+    if (!$source || !file_exists($source)) {
+        error_log("PclZip: Source not found: $source");
         return false;
     }
 
-    $tmp_destination = $final_destination . '.tmp';
-
-    error_log("Zip Archive - source: $source");
-    error_log("Zip Archive - tmp destination: $tmp_destination");
-
-    $zip = new ZipArchive();
-    if (!$zip->open($tmp_destination, ZipArchive::CREATE | ZipArchive::OVERWRITE)) {
-        error_log("Zip: Cannot open temp archive for writing");
+    // Чтобы избежать архивации самого архива
+    if (strpos($destination, $source) === 0) {
+        error_log("PclZip: Destination is inside source — skipping to avoid recursion");
         return false;
     }
 
-    $source = str_replace('\\', '/', realpath($source));
+    $archive = new PclZip($destination);
 
-    if (is_dir($source)) {
-        $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($source),
-            RecursiveIteratorIterator::SELF_FIRST
-        );
+    $excluded_extensions = ['zip', 'log', 'tmp', 'gz'];
+    $excluded_dirs = ['backups', '.git', '.idea'];
 
-        foreach ($files as $file) {
-            $file = str_replace('\\', '/', $file);
+    $file_list = [];
 
-            if (in_array(substr($file, strrpos($file, '/')+1), ['.', '..'])) continue;
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
 
-            $realPath = realpath($file);
-            if (!$realPath) continue;
-            $realPath = str_replace('\\', '/', $realPath);
+    foreach ($iterator as $file) {
+        $path = realpath($file);
+        if (!$path || in_array(basename($path), ['.', '..'])) continue;
 
-            if (
-                stripos($realPath, '/backups/') !== false ||
-                stripos($realPath, '.git') !== false ||
-                stripos($realPath, '.idea') !== false ||
-                preg_match('/\.(zip|log|tmp|gz)$/i', $realPath)
-            ) continue;
+        $relative = ltrim(str_replace($source, '', $path), '/');
 
-            $localName = ltrim(str_replace($source . '/', '', $realPath), '/');
-
-            if (is_dir($realPath)) {
-                $zip->addEmptyDir($localName);
-                error_log("Zip Archive - add dir: $localName");
-            } elseif (is_file($realPath)) {
-                $zip->addFile($realPath, $localName);
-                error_log("Zip Archive - add file: $localName");
-            }
+        // Исключения по директориям
+        foreach ($excluded_dirs as $dir) {
+            if (strpos($relative, $dir) !== false) continue 2;
         }
 
-    } elseif (is_file($source)) {
-        $zip->addFile($source, basename($source));
-        error_log("Zip Archive - add single file: " . basename($source));
+        // Исключения по расширениям
+        $ext = pathinfo($path, PATHINFO_EXTENSION);
+        if (in_array(strtolower($ext), $excluded_extensions)) continue;
+
+        $file_list[] = [
+            PCLZIP_ATT_FILE_NAME => $path,
+            PCLZIP_ATT_FILE_NEW_SHORT_NAME => $relative
+        ];
+
+        error_log("PclZip - added: $relative");
     }
 
-    $result = $zip->close();
-    error_log("Zip Archive - close result: " . ($result ? 'success' : 'fail'));
-
-    if (!$result) {
+    if (empty($file_list)) {
+        error_log("PclZip: no files found to archive.");
         return false;
     }
 
-    if (!@rename($tmp_destination, $final_destination)) {
-        error_log("Zip Archive - failed to rename temp archive to final destination");
-        return false;
-    }
+    $result = $archive->create($file_list);
+    error_log("PclZip - archive result: " . ($result ? 'success' : 'fail'));
 
-    error_log("Zip Archive - moved to: $final_destination");
-    return true;
+    return $result !== 0;
 }
