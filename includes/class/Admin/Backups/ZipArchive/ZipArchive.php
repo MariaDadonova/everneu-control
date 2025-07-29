@@ -30,7 +30,7 @@ function Zip($source, $destination){
 
             error_log("Zip Archive 31 - file: " . $file);
 
-            if((stripos($file, 'backups') === false) && (stripos($file, '.git') === false) && (stripos($file, '.idea') === false) /*&& (stripos($file, '.sql') === false)*/){
+            if((stripos($file, 'backups') === false) && (stripos($file, '.git') === false) && (stripos($file, '.idea') === false) && !preg_match('/\.(zip|log|tmp)$/i', $file) /*&& (stripos($file, '.sql') === false)*/){
                 //$log = date('Y-m-d H:i:s') . ' log time';
                 //file_put_contents(__DIR__ . '/log.txt', stripos($file, 'uploads').' '.$file.' '.$log . PHP_EOL, FILE_APPEND);
 
