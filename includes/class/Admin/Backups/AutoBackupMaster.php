@@ -45,6 +45,22 @@ class AutoBackupMaster {
         //Create a SQL dump
         $this->createSQLdump();
 
+        $backup_dir = '/nas/content/live/everneusandbox/wp-content/uploads/backups/';
+
+        clearstatcache(true, $backup_dir);
+
+        error_log('Is backups dir writable? ' . (is_writable($backup_dir) ? 'yes' : 'no'));
+
+        $perms = fileperms($backup_dir);
+        error_log('backups dir perms: ' . substr(sprintf('%o', $perms), -4));
+
+        if (function_exists('posix_getpwuid')) {
+            $owner = posix_getpwuid(fileowner($backup_dir));
+            error_log('backups dir owner: ' . print_r($owner, true));
+        } else {
+            error_log('posix_getpwuid not available');
+        }
+
         //Create a backup
         $this->createBackup($upload_dir, $src_dir, $name);
 
