@@ -46,19 +46,7 @@ class AutoBackupMaster {
         $this->createSQLdump();
 
         //Create a backup
-        //$this->createBackup($upload_dir, $src_dir, $name);
-
-        $src_sql_file = ABSPATH . 'wp-content/wp_everneusandbox_wp_.sql';
-        $zip_path = $upload_dir . $name;
-
-        error_log("Zip - Source: $src_sql_file");
-        error_log("Zip - Destination: $zip_path");
-
-        if (Zip($src_sql_file, $zip_path)) {
-            error_log("Zip - Archive created successfully.");
-        } else {
-            error_log("Zip - Failed to create archive.");
-        }
+        $this->createBackup($upload_dir, $src_dir, $name);
 
         //Send file to DropBox
         $this->sendFileToDropbox($instal, $name);

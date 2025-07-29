@@ -19,26 +19,28 @@ function Zip($source, $destination) {
 
     if (is_dir($source)) {
         $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS),
+            new RecursiveDirectoryIterator($source),
             RecursiveIteratorIterator::SELF_FIRST
         );
 
         foreach ($files as $file) {
             $file = str_replace('\\', '/', $file);
-            $realPath = str_replace('\\', '/', realpath($file));
+            $basename = basename($file);
+            if ($basename === '.' || $basename === '..') continue;
 
-            if (
-                stripos($realPath, '/backups/') !== false ||
-                stripos($realPath, '/.git/') !== false ||
-                stripos($realPath, '/.idea/') !== false
-            ) {
-                error_log("PclZip - Skipped: $realPath");
+            $realPath = str_replace('\\', '/', realpath($file));
+            if (!$realPath) continue;
+
+            // Исключаем ненужные директории
+            if (stripos($realPath, 'backups') !== false || stripos($realPath, '.git') !== false || stripos($realPath, '.idea') !== false) {
                 continue;
             }
 
-            $localName = ltrim(str_replace($source, '', $realPath), '/');
+            // Обрезаем путь до относительного от ABSPATH
+            $localName = ltrim(str_replace(ABSPATH, '', $realPath), '/');
 
             if (is_dir($realPath)) {
+                // PclZip не требует явного добавления директорий
                 continue;
             }
 
@@ -50,23 +52,22 @@ function Zip($source, $destination) {
                 error_log("PclZip - Added .sql: $localName");
             } else {
                 $tmp_path = tempnam(sys_get_temp_dir(), 'pclzip');
-                if ($tmp_path && file_put_contents($tmp_path, file_get_contents($realPath)) !== false) {
-                    $file_list[] = [
-                        PCLZIP_ATT_FILE_NAME => $tmp_path,
-                        PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
-                    ];
-                    error_log("PclZip - Added from string: $localName");
-                } else {
-                    error_log("PclZip - Failed to copy to temp: $realPath");
-                }
+                file_put_contents($tmp_path, file_get_contents($realPath));
+                $file_list[] = [
+                    PCLZIP_ATT_FILE_NAME => $tmp_path,
+                    PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
+                ];
+                error_log("PclZip - Added from string: $localName");
             }
         }
     } elseif (is_file($source)) {
+        // Только один файл
+        $localName = ltrim(str_replace(ABSPATH, '', $source), '/');
         $file_list[] = [
             PCLZIP_ATT_FILE_NAME => $source,
-            PCLZIP_ATT_FILE_NEW_SHORT_NAME => basename($source)
+            PCLZIP_ATT_FILE_NEW_SHORT_NAME => $localName
         ];
-        error_log("PclZip - Added single file: " . basename($source));
+        error_log("PclZip - Added single file: $localName");
     }
 
     if (empty($file_list)) {
@@ -75,7 +76,6 @@ function Zip($source, $destination) {
     }
 
     $result = $archive->create($file_list);
-    error_log("PclZip - Archive create result: " . ($result !== 0 ? 'success' : 'fail'));
-
+    error_log("PclZip - Archive create result: " . ($result ? 'success' : 'fail'));
     return $result !== 0;
 }
