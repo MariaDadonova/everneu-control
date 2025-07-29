@@ -25,30 +25,46 @@ include_once WP_PLUGIN_DIR . '/everneu-control/includes/class/Admin/Settings/Sit
 class AutoBackupMaster {
 
     public function __construct() {
-        $instal =  $_SERVER['HTTP_HOST'];
+        $instal = $_SERVER['HTTP_HOST'];
 
         $upload = wp_upload_dir();
-        error_log("wp_upload_dir: " . print_r($upload));
+        error_log("wp_upload_dir: " . print_r($upload, true));
 
         $upload_dir = $upload['basedir'];
         error_log("Upload dir: " . $upload_dir);
 
-        $upload_dir = $upload_dir . '/backups/';
-        error_log("Upload dir 2: " . $upload_dir);
+        $backup_dir = $upload_dir . '/backups/';
+        error_log("Upload dir 2: " . $backup_dir);
 
-        $src_dir = $_SERVER['DOCUMENT_ROOT'];
+        if (!file_exists($backup_dir)) {
+            mkdir($backup_dir, 0755, true);
+        }
+
+        $src_dir = realpath($_SERVER['DOCUMENT_ROOT']);
         error_log("Src dir: " . $src_dir);
 
-        $name = str_replace('.', '_', $instal).date('Y-m-d_h-i-s').".zip";
+        $name = str_replace('.', '_', $instal) . date('Y-m-d_H-i-s') . ".zip";
         error_log("Name: " . $name);
 
-        //Create a SQL dump
         $this->createSQLdump();
 
-        //Create a backup
-        $this->createBackup($upload_dir, $src_dir, $name);
+        clearstatcache(true, $backup_dir);
+        error_log('Is backups dir writable? ' . (is_writable($backup_dir) ? 'yes' : 'no'));
 
-        //Send file to DropBox
+        $perms = fileperms($backup_dir);
+        error_log('backups dir perms: ' . substr(sprintf('%o', $perms), -4));
+
+        if (function_exists('posix_getpwuid')) {
+            $owner = posix_getpwuid(fileowner($backup_dir));
+            error_log('backups dir owner: ' . print_r($owner, true));
+        } else {
+            error_log('posix_getpwuid not available');
+        }
+
+        //Creating a backup
+        $this->createBackup($backup_dir, $src_dir, $name);
+
+        //Send file to Dropbox
         $this->sendFileToDropbox($instal, $name);
     }
 
@@ -67,25 +83,15 @@ class AutoBackupMaster {
 
     public function createBackup($upload_dir, $src_dir, $name)
     {
-        $archive_dir = $upload_dir;
+        $zip_path = $upload_dir . $name;
 
-        if (!file_exists($archive_dir)) {
-            if (!mkdir($archive_dir, 0755, true)) {
-                error_log("createBackup ERROR: Failed to create archive dir: " . $archive_dir);
-                return;
-            } else {
-                error_log("createBackup: Created archive dir: " . $archive_dir);
-            }
+        $result = Zip($src_dir, $zip_path);
+
+        if ($result) {
+            error_log("Backup created: $zip_path");
+        } else {
+            error_log("Backup failed");
         }
-
-        if (!is_writable($archive_dir)) {
-            error_log("createBackup ERROR: Archive dir is not writable: " . $archive_dir);
-            return;
-        }
-
-        $fileName = $archive_dir . $name;
-
-        Zip($src_dir, $fileName);
     }
 
     public function sendFileToDropbox($instal, $name)
