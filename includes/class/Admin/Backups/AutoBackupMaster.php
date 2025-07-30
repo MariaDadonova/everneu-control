@@ -100,7 +100,7 @@ class AutoBackupMaster {
         $archive = new \PclZip($destination);
 
         $files = [];
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source), RecursiveIteratorIterator::LEAVES_ONLY);
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($source), \RecursiveIteratorIterator::LEAVES_ONLY);
         foreach ($iterator as $file) {
             if (!$file->isFile()) continue;
             $filePath = $file->getRealPath();
