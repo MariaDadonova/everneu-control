@@ -29,4 +29,8 @@ class Environment {
     public static function isDevelopment(): bool {
         return self::detect() === 'development';
     }
+
+    public static function isUnknown(): bool {
+        return self::detect() == 'unknown';
+    }
 }
