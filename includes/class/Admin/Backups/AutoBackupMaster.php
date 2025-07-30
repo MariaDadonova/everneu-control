@@ -97,7 +97,7 @@ class AutoBackupMaster {
             return false;
         }
 
-        $archive = new PclZip($destination);
+        $archive = new \PclZip($destination);
 
         $files = [];
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source), RecursiveIteratorIterator::LEAVES_ONLY);
