@@ -5,9 +5,7 @@ namespace EVN\Admin\Backups;
 use DropboxAPI;
 use EVN\Helpers\Encryption;
 use MySql;
-use ZipArchive;
 
-include_once __DIR__ . '/ZipArchive/ZipArchive.php';
 include_once __DIR__ . '/DropboxAPIClient/DropboxAPI.php';
 include_once __DIR__ . '/SqlDump/MySql.php';
 include_once WP_PLUGIN_DIR . '/everneu-control/includes/class/Admin/Settings/SiteMap/SiteMap.php';
