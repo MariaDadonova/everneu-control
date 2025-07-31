@@ -2,7 +2,7 @@
 
 /*
 Plugin Name: Everneu Control
-Plugin URI: https://github.com/MariaDadonova/evernue
+Plugin URI: https://github.com/MariaDadonova/everneu-control
 Description: Plugin for control process of development in the company.
 Version: 0.0.1
 Author: Maria Dadonova
