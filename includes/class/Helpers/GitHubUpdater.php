@@ -17,7 +17,10 @@ class GitHubUpdater {
         $this->branch = $branch;
         $this->subfolder = trim($subfolder, '/');
 
+
         add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_update']);
+
+        error_log(print_r('this->plugin_file: ' . $this->plugin_file, true));
 
         $current_plugin_data = get_plugin_data($this->plugin_file);
         //error_log("GitHubUpdater current_plugin_data: " . print_r($current_plugin_data, true));
@@ -149,6 +152,14 @@ class GitHubUpdater {
     }
 
     public function after_install($response, $hook_extra, $result) {
+        error_log('After install response: ' . print_r($response, true));
+        error_log('After install hook extra: ' . print_r($hook_extra, true));
+        error_log('After install result: ' .print_r($result, true));
+
+        if ( empty($hook_extra['plugin']) || $hook_extra['plugin'] !== $this->plugin_slug) {
+            return $result;
+        }
+
         global $wp_filesystem;
 
         $plugin_dir = WP_PLUGIN_DIR . '/' . dirname($this->plugin_slug);
@@ -156,9 +167,11 @@ class GitHubUpdater {
 
         // Folder after unpacking archive
         $unpacked_subfolder = trailingslashit($temp_dir) . $this->github_repo . '-' . $this->branch;
+        error_log(print_r('After install unpacked_subfolder (folder after unpacking archive): ' . $unpacked_subfolder, true));
 
         // Removing old plugin's version
-        $wp_filesystem->delete($plugin_dir, true);
+        $tt = $wp_filesystem->delete($plugin_dir, true);
+        error_log(print_r('After install Removing old plugins version: ' . $tt, true));
 
         if ($wp_filesystem->is_dir($unpacked_subfolder)) {
             $wp_filesystem->move($unpacked_subfolder, $plugin_dir);
@@ -167,6 +180,8 @@ class GitHubUpdater {
         }
 
         $result['destination'] = $plugin_dir;
+        
+        error_log(print_r('After install destination: ' . $result['destination'], true));
 
         // Activating plugin after updating
         activate_plugin($this->plugin_slug);
