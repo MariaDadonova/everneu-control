@@ -4,7 +4,7 @@
 Plugin Name: Everneu Control
 Plugin URI: https://github.com/MariaDadonova/everneu-control
 Description: Plugin for control process of development in the company.
-Version: 0.0.1
+Version: 0.0.2
 Author: Maria Dadonova
 Author URI: http://everneu.wpengine.com
 License: A "Slug" license name e.g. GPL2
