@@ -49,7 +49,7 @@ class EverneuControlPlugin
 
         add_action('plugins_loaded', function() {
             $this->github_updater = new \EVN\Helpers\GitHubUpdater(
-                WP_PLUGIN_DIR . '/everneu-control/everneu-control.php',
+                WP_PLUGIN_DIR . '/'. EVN_BASENAME,
                 'MariaDadonova',
                 'everneu-control',
                 'master',
