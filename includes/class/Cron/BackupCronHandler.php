@@ -12,7 +12,7 @@ class BackupCronHandler {
     }
 
     public function run() {
-        if (Environment::isProduction() || Environment::isUnknown()) {
+        if (Environment::isProduction()) {
             require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
 
             $backup = new AutoBackupMaster();
