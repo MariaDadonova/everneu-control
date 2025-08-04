@@ -156,7 +156,7 @@ class GitHubUpdater {
         error_log('After install hook extra: ' . print_r($hook_extra, true));
         error_log('After install result: ' .print_r($result, true));
 
-        if ( empty($hook_extra['plugin']) || $hook_extra['plugin'] !== $this->plugin_slug) {
+        if (empty($hook_extra['plugin']) || $hook_extra['plugin'] !== $this->plugin_slug) {
             return $result;
         }
 
