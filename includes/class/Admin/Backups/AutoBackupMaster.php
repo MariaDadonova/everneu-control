@@ -223,7 +223,7 @@ class AutoBackupMaster {
         }
 
         //Send file to dropbox
-        $drops->SendFile($access_token, $path_in_db, $fp, $size);
+        $drops->SendLargeFile($access_token, $path_in_db, $fp, $size);
 
         $linkData = $drops->getOrCreateSharedLinkForFolder($access_token, '/Secondary Backups/'.$instal);
 

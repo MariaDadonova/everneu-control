@@ -187,6 +187,7 @@ class DropboxAPI
 /////////////////////////////////
 
     //Send file to dropbox
+    //file size <150Mb
     public function SendFile($access_token, $name, $fp, $size) {
 
         // path to shared folder by ID
@@ -226,6 +227,119 @@ class DropboxAPI
             )
         );
 
+
+        return $response;
+    }
+
+    //Send file to dropbox
+    //file size <2Tb
+    public function SendLargeFile($access_token, $name, $fp, $size) {
+        $chunk_size = 8 * 1024 * 1024; // 8MB
+        $upload_session_id = null;
+        $offset = 0;
+
+        while (!feof($fp)) {
+            $chunk = fread($fp, $chunk_size);
+            $is_last = feof($fp);
+
+            if ($upload_session_id === null) {
+                // Start session
+                $ch = curl_init('https://content.dropboxapi.com/2/files/upload_session/start');
+                $headers = [
+                    'Authorization: Bearer ' . $access_token,
+                    'Content-Type: application/octet-stream',
+                    'Dropbox-API-Arg: {"close": false}'
+                ];
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $chunk);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+                $response = curl_exec($ch);
+                curl_close($ch);
+
+                $data = json_decode($response, true);
+                if (isset($data['session_id'])) {
+                    $upload_session_id = $data['session_id'];
+                    $offset += strlen($chunk);
+                } else {
+                    return $response; // Error starting session
+                }
+            } else {
+                if ($is_last) {
+                    // Finish upload session
+                    $ch = curl_init('https://content.dropboxapi.com/2/files/upload_session/finish');
+
+                    $arg = json_encode([
+                        "cursor" => [
+                            "session_id" => $upload_session_id,
+                            "offset" => $offset
+                        ],
+                        "commit" => [
+                            "path" => "/Secondary Backups/" . $name,
+                            "mode" => "add",
+                            "autorename" => true,
+                            "mute" => false
+                        ]
+                    ]);
+
+                    $headers = [
+                        'Authorization: Bearer ' . $access_token,
+                        'Content-Type: application/octet-stream',
+                        'Dropbox-API-Arg: ' . $arg
+                    ];
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $chunk);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+                    $response = curl_exec($ch);
+                    curl_close($ch);
+                    break;
+                } else {
+                    // Append chunk
+                    $ch = curl_init('https://content.dropboxapi.com/2/files/upload_session/append_v2');
+
+                    $arg = json_encode([
+                        "cursor" => [
+                            "session_id" => $upload_session_id,
+                            "offset" => $offset
+                        ],
+                        "close" => false
+                    ]);
+
+                    $headers = [
+                        'Authorization: Bearer ' . $access_token,
+                        'Content-Type: application/octet-stream',
+                        'Dropbox-API-Arg: ' . $arg
+                    ];
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $chunk);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+                    curl_exec($ch); // No response on success
+                    curl_close($ch);
+                    $offset += strlen($chunk);
+                }
+            }
+        }
+
+        fclose($fp);
+
+        /* Fill in the log table */
+        global $wpdb;
+        $tablename = $wpdb->prefix . "ev_backup_logs";
+
+        $wpdb->insert(
+            $tablename,
+            [
+                'name' => substr($name, strpos($name, '/') + 1),
+                'size' => $size,
+                'date' => date('Y-m-d h:i:s'),
+                'path' => "/Secondary Backups/" . $name,
+            ]
+        );
 
         return $response;
     }
@@ -329,10 +443,9 @@ class DropboxAPI
         $result = json_decode($response, true);
 
         if (!empty($result['links']) && isset($result['links'][0]['url'])) {
-            return str_replace('?dl=0', '?dl=1', $result['links'][0]['url']); // прямое скачивание
+            return str_replace('?dl=0', '?dl=1', $result['links'][0]['url']);
         }
 
-        // Создание новой ссылки
         $create_url = "https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings";
         $create_data = [
             "path" => $file_path,
