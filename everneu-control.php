@@ -35,9 +35,10 @@ $evn_plugin = \EVN\EverneuControlPlugin::get_instance();
 register_activation_hook(__FILE__, [Activator::class, 'activate']);
 register_deactivation_hook(__FILE__, [Activator::class, 'deactivate']);
 
+register_activation_hook(__FILE__, 'ec_install');
+register_deactivation_hook(__FILE__, 'ec_uninstall');
 
 add_option("everneu_control", "1.0");
-
 
 function ec_install(){
 
@@ -70,8 +71,9 @@ function ec_install(){
 
 }
 
-register_activation_hook(__FILE__, 'ec_install');
-register_deactivation_hook(__FILE__, 'ec_uninstall');
+function ec_uninstall() {
+
+}
 
 function ev_plugin_admin_styles() {
     wp_enqueue_style( 'style', plugins_url().'/everneu-control/assets/css/style.css', '', null, '' );
