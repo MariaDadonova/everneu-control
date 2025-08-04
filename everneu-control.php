@@ -4,7 +4,7 @@
 Plugin Name: Everneu Control
 Plugin URI: https://github.com/MariaDadonova/everneu-control
 Description: Plugin for control process of development in the company.
-Version: 0.0.4
+Version: 0.0.5
 Author: Maria Dadonova
 Author URI: http://everneu.wpengine.com
 License: A "Slug" license name e.g. GPL2
@@ -27,6 +27,7 @@ define( 'EVN_BASENAME', plugin_basename( __FILE__ ) );
 
 
 // Run plugin
+require_once __DIR__ . '/includes/class/Activator.php';
 require_once __DIR__ . '/includes/class/EverneuControlPlugin.php';
 use EVN\Activator;
 //require_once plugin_dir_path( __FILE__ ) . 'includes/class/EverneuControlPlugin.php';
@@ -34,9 +35,6 @@ $evn_plugin = \EVN\EverneuControlPlugin::get_instance();
 
 register_activation_hook(__FILE__, [Activator::class, 'activate']);
 register_deactivation_hook(__FILE__, [Activator::class, 'deactivate']);
-
-register_activation_hook(__FILE__, 'ec_install');
-register_deactivation_hook(__FILE__, 'ec_uninstall');
 
 add_option("everneu_control", "1.0");
 
@@ -70,12 +68,13 @@ function ec_install(){
     }
 
 }
+register_activation_hook(__FILE__, 'ec_install');
 
 function ec_uninstall() {
 
 }
+register_deactivation_hook(__FILE__, 'ec_uninstall');
 
 function ev_plugin_admin_styles() {
     wp_enqueue_style( 'style', plugins_url().'/everneu-control/assets/css/style.css', '', null, '' );
 }
-
