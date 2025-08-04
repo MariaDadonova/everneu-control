@@ -62,10 +62,6 @@ class EverneuControlPlugin
         require_once EVN_DIR . 'includes/class/Cron/BackupCronHandler.php';
         new \EVN\Cron\BackupCronHandler();
 
-        // Registration of activation/deactivation hooks
-        register_activation_hook(__FILE__, ['\EVN\Activator', 'activate']);
-        register_deactivation_hook(__FILE__, ['\EVN\Activator', 'deactivate']);
-
         require_once EVN_DIR . 'includes/class/Admin/Settings/Settings.php';    
         require_once EVN_DIR . 'includes/class/Admin/Backups/Backups.php';
 

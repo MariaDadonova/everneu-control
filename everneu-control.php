@@ -4,7 +4,7 @@
 Plugin Name: Everneu Control
 Plugin URI: https://github.com/MariaDadonova/everneu-control
 Description: Plugin for control process of development in the company.
-Version: 0.0.3
+Version: 0.0.4
 Author: Maria Dadonova
 Author URI: http://everneu.wpengine.com
 License: A "Slug" license name e.g. GPL2
@@ -28,8 +28,12 @@ define( 'EVN_BASENAME', plugin_basename( __FILE__ ) );
 
 // Run plugin
 require_once __DIR__ . '/includes/class/EverneuControlPlugin.php';
+use EVN\Activator;
 //require_once plugin_dir_path( __FILE__ ) . 'includes/class/EverneuControlPlugin.php';
 $evn_plugin = \EVN\EverneuControlPlugin::get_instance();
+
+register_activation_hook(__FILE__, [Activator::class, 'activate']);
+register_deactivation_hook(__FILE__, [Activator::class, 'deactivate']);
 
 
 add_option("everneu_control", "1.0");
@@ -44,23 +48,12 @@ function ec_install(){
     $tablename = $wpdb->prefix. "ev_" . "backup_logs";
 
     $sql = "CREATE TABLE $tablename  (
-  id int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  name varchar(255) NOT NULL,
-  size int(11) NOT NULL,
-  date timestamp NOT NULL,
-  path varchar(255) NOT NULL
-  ) $charset_collate;";
-
-/*    $tablename = $wpdb->prefix. "ev_" . "crontasks";
-
-    $sql .= "CREATE TABLE $tablename  (
-  id int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  frequency varchar(255) NOT NULL,
-  month int(11),
-  day int(11),
-  hours int(11),
-  minutes int(11)
-  ) $charset_collate;";*/
+            id int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            name varchar(255) NOT NULL,
+            size int(11) NOT NULL,
+            date timestamp NOT NULL,
+            path varchar(255) NOT NULL
+    ) $charset_collate;";
 
     // [add comment for why we require upgrade.php] or remove if no longer needed
     //Connecting upgrade.php , which contains the dbDelta() function – it safely creates/updates tables.
@@ -76,13 +69,6 @@ function ec_install(){
     }
 
 }
-
-function ec_uninstall(){
-
-    delete_option('ev_dropbox_settings');
-    
-}
-
 
 register_activation_hook(__FILE__, 'ec_install');
 register_deactivation_hook(__FILE__, 'ec_uninstall');
