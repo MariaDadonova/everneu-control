@@ -60,7 +60,12 @@ class AutoBackupMaster {
 
         if ($zip_result) {
             error_log("Backup created: $zip_path");
-            $this->sendFileToDropbox($instal, $zip_name);
+            $dropbox_result = $this->sendFileToDropbox($instal, $zip_name);
+
+            // Delete local ZIP archive if Dropbox upload was successful
+            if ($dropbox_result) {
+                $this->deleteZipArchive($zip_path);
+            }
         } else {
             error_log("Backup failed");
         }
@@ -141,6 +146,29 @@ class AutoBackupMaster {
         error_log("Deleted temp backup directory: $dirPath");
     }
 
+    /**
+     * Deletes ZIP archive after successful upload to Dropbox
+     * This helps save server disk space by removing local backup files
+     *
+     * @param string $zip_path Full path to the ZIP archive
+     * @return bool True if deletion successful, false otherwise
+     */
+    private function deleteZipArchive(string $zip_path) {
+        if (!file_exists($zip_path)) {
+            error_log("ZIP archive not found for deletion: $zip_path");
+            return false;
+        }
+
+        if (@unlink($zip_path)) {
+            error_log("ZIP archive successfully deleted: $zip_path");
+            return true;
+        } else {
+            error_log("Failed to delete ZIP archive: $zip_path");
+            return false;
+        }
+    }
+
+
     public function createSQLdump()
     {
         $database = new MySql();
@@ -194,25 +222,26 @@ class AutoBackupMaster {
 
         clearstatcache(true, $path);
 
+        //Return false if file doesn't exist instead of just returning void
         if (!file_exists($path)) {
             error_log("Can't find a file: $path");
-            return;
+            return false;
         }
 
         $fp = fopen($path, 'rb');
 
         if (!$fp) {
             error_log("Can't open the file: $path");
-            return;
+            return false;
         }
 
 
         $size = filesize($path);
 
+        //Return false if file size can't be determined
         if ($size === false) {
             error_log("Can't get a file's size: $path");
-            fclose($fp);
-            return;
+            return false;
         }
 
         $path_in_db = $instal.'/'.$name;
@@ -223,7 +252,13 @@ class AutoBackupMaster {
         }
 
         //Send file to dropbox
-        $drops->SendLargeFile($access_token, $path_in_db, $fp, $size);
+        //Store result and check if upload was successful
+        $send_result = $drops->SendFile($access_token, $path_in_db, $fp, $size);
+
+        if (!$send_result) {
+            error_log("Failed to send file to Dropbox: $path");
+            return false;
+        }
 
         $linkData = $drops->getOrCreateSharedLinkForFolder($access_token, '/Secondary Backups/'.$instal);
 
@@ -234,6 +269,8 @@ class AutoBackupMaster {
             echo 'Error creating link.';
         }
 
+        //Return true to indicate successful upload
+        return true;
 
     }
 
