@@ -210,17 +210,21 @@ class Backups
                     </form>
 
                     <?php
-                            require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
+                    require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
 
-                            if (isset($_POST["send"])) {
-                                $backup = new AutoBackupMaster();
+                    if (isset($_POST["send"])) {
+                        $backup = new AutoBackupMaster();
 
-                                if ($backup) {
-                                    error_log('Backup successfully uploaded to Dropbox.');
-                                } else {
-                                    error_log('Failed to create backup.');
-                                }
-                            }
+                        if ($backup->initBackup()) {
+                            // Run the following steps via cron with a slight delay
+                            wp_schedule_single_event(time() + 5,  'backup_step_dump_db');
+                            echo '<div class="notice notice-success"><p>Backup started! Steps are running in the background.</p></div>';
+                            error_log('Manual backup initiated successfully.');
+                        } else {
+                            echo '<div class="notice notice-error"><p>Failed to initiate backup.</p></div>';
+                            error_log('Failed to initiate manual backup.');
+                        }
+                    }
                     ?>
                 </section>
 
