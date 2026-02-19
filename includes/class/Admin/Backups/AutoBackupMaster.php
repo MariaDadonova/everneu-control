@@ -250,7 +250,9 @@ class AutoBackupMaster {
             return false;
         }
 
-        $folders = ['wp-admin', 'wp-content', 'wp-includes'];
+        $this->archiveWpContent();
+
+        $folders = ['wp-admin', 'wp-includes'];
 
         foreach ($folders as $folder) {
             $src = $this->tmp_backup_dir . '/' . $folder;
@@ -328,6 +330,55 @@ class AutoBackupMaster {
         $this->saveState();
         error_log("Backup step 4 done: all folders archived");
         return true;
+    }
+
+    private function archiveWpContent(): void {
+        $wp_content_src = $this->tmp_backup_dir . '/wp-content';
+        if (!is_dir($wp_content_src)) return;
+
+        // Archive each subdirectory of wp-content separately
+        $subdirs = glob($wp_content_src . '/*', GLOB_ONLYDIR) ?: [];
+
+        foreach ($subdirs as $subdir) {
+            $subdir_name = basename($subdir);
+            $files_to_add = [];
+
+            foreach ($this->getFilesRecursive($subdir) as $f) {
+                $files_to_add[] = [
+                    PCLZIP_ATT_FILE_NAME          => $f,
+                    PCLZIP_ATT_FILE_NEW_FULL_NAME => substr($f, strlen($this->tmp_backup_dir) + 1),
+                ];
+            }
+
+            if (empty($files_to_add)) continue;
+
+            $zip_name = $this->tmp_backup_dir . '/wp-content_' . $subdir_name . '.zip';
+            $archive  = new \PclZip($zip_name);
+
+            if ($archive->create($files_to_add)) {
+                $this->file_parts[] = 'wp-content_' . $subdir_name . '.zip';
+                error_log("Backup: archived wp-content/$subdir_name");
+            } else {
+                error_log("Backup: failed wp-content/$subdir_name — " . $archive->errorInfo(true));
+            }
+        }
+
+        // Archive root files of wp-content (non-directories)
+        $root_files_in_wpc = array_filter(glob($wp_content_src . '/*') ?: [], 'is_file');
+        if (!empty($root_files_in_wpc)) {
+            $files_to_add = [];
+            foreach ($root_files_in_wpc as $f) {
+                $files_to_add[] = [
+                    PCLZIP_ATT_FILE_NAME          => $f,
+                    PCLZIP_ATT_FILE_NEW_FULL_NAME => 'wp-content/' . basename($f),
+                ];
+            }
+            $zip_name = $this->tmp_backup_dir . '/wp-content_root.zip';
+            $archive  = new \PclZip($zip_name);
+            if ($archive->create($files_to_add)) {
+                $this->file_parts[] = 'wp-content_root.zip';
+            }
+        }
     }
 
     /**
