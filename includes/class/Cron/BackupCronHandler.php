@@ -56,8 +56,15 @@ class BackupCronHandler {
     public function step_upload_dropbox() {
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
-        if ($backup->stepUploadDropbox()) {
+
+        $result = $backup->stepUploadNextFile();
+
+        if ($result === 'done') {
             wp_schedule_single_event(time() + 5, 'backup_step_cleanup');
+        } elseif ($result === 'continue') {
+            wp_schedule_single_event(time() + 5, 'backup_step_upload_dropbox');
+        } else {
+            error_log('Backup stepUploadDropbox: fatal error, stopping');
         }
     }
 

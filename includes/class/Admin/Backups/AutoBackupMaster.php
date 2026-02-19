@@ -42,6 +42,8 @@ class AutoBackupMaster {
     /** @var array List of site archive filenames (e.g. ['wp-content.zip', 'root_files.zip']) */
     private $file_parts = [];
 
+    private $upload_index = 0;
+
     /**
      * Constructor — loads persisted state from wp_options.
      * On step 1 (initBackup) state will be empty; on steps 2-6 it will be populated.
@@ -64,6 +66,7 @@ class AutoBackupMaster {
             $this->backup_name    = $state['backup_name']    ?? '';
             $this->db_parts       = $state['db_parts']       ?? [];
             $this->file_parts     = $state['file_parts']     ?? [];
+            $this->upload_index   = $state['upload_index']   ?? 0;
         }
     }
 
@@ -76,6 +79,7 @@ class AutoBackupMaster {
             'backup_name'    => $this->backup_name,
             'db_parts'       => $this->db_parts,
             'file_parts'     => $this->file_parts,
+            'upload_index'   => $this->upload_index,
         ]);
     }
 
@@ -382,28 +386,21 @@ class AutoBackupMaster {
     }
 
     /**
-     * Step 5: Upload all backup parts to Dropbox.
-     *
-     * Uploads db_backup.zip, folder archives, and metadata.json into a
-     * dedicated folder on Dropbox: <site_name>/<backup_name>/
-     * Optionally sends a shared folder link to Google via sendtoGoogleUrls().
-     *
-     * @return bool True if upload completed, false if Dropbox credentials are missing.
+     * Step 5: Upload ONE file per cron call.
+     * Returns 'done', 'continue', or 'error'.
      */
-    public function stepUploadDropbox(): bool {
+    public function stepUploadNextFile(): string {
         if (empty($this->tmp_backup_dir)) {
-            error_log("Backup stepUploadDropbox: no state found, cannot proceed");
-            return false;
+            error_log("Backup stepUploadNextFile: no state found");
+            return 'error';
         }
 
         $site_name = $_SERVER['HTTP_HOST'];
 
-        // Load and validate Dropbox settings from wp_options
         $dropbox_settings = get_option('ev_dropbox_settings');
-
         if (empty($dropbox_settings)) {
-            error_log("Backup stepUploadDropbox: Dropbox settings not configured");
-            return false;
+            error_log("Backup stepUploadNextFile: Dropbox settings not configured");
+            return 'error';
         }
 
         if (is_string($dropbox_settings)) {
@@ -411,11 +408,10 @@ class AutoBackupMaster {
         }
 
         if (empty($dropbox_settings['refresh_token'])) {
-            error_log("Backup stepUploadDropbox: missing Dropbox credentials in settings");
-            return false;
+            error_log("Backup stepUploadNextFile: missing credentials");
+            return 'error';
         }
 
-        // Decrypt stored credentials
         $refresh_token = Encryption::decrypt($dropbox_settings['refresh_token']);
         $app_key       = Encryption::decrypt($dropbox_settings['app_key']);
         $app_secret    = Encryption::decrypt($dropbox_settings['app_secret']);
@@ -424,65 +420,68 @@ class AutoBackupMaster {
         $drops        = new DropboxAPI($app_key, $app_secret, $access_code);
         $access_token = $drops->curlRefreshToken($refresh_token);
 
-        // Target path in Dropbox: <site_name>/<backup_name>/
         $full_backup_path = $site_name . '/' . $this->backup_name;
 
-        // Create site folder if it doesn't exist yet
-        if (!$drops->GetListFolder($access_token, $site_name)) {
-            $drops->CreateFolder($access_token, $site_name);
+        // Create folders on first call (upload_index == 0)
+        if (($this->upload_index ?? 0) === 0) {
+            if (!$drops->GetListFolder($access_token, $site_name)) {
+                $drops->CreateFolder($access_token, $site_name);
+            }
+            $drops->CreateFolder($access_token, $full_backup_path);
         }
 
-        // Create a new folder for this specific backup
-        $drops->CreateFolder($access_token, $full_backup_path);
-
-        // Upload each archive part and metadata.json
+        // Get full list of files to upload
         $all_parts = array_merge($this->db_parts, $this->file_parts, ['metadata.json']);
+        $index     = $this->upload_index ?? 0;
 
-        foreach ($all_parts as $part) {
-            $local_path = $this->tmp_backup_dir . '/' . $part;
-
-            if (!file_exists($local_path)) {
-                error_log("Backup stepUploadDropbox: file not found, skipping — $local_path");
-                continue;
+        // All files already uploaded
+        if ($index >= count($all_parts)) {
+            // Send shared link to Google
+            $linkData = $drops->getOrCreateSharedLinkForFolder(
+                $access_token,
+                '/Secondary Backups/' . $full_backup_path
+            );
+            if ($linkData !== false && function_exists('sendtoGoogleUrls')) {
+                sendtoGoogleUrls($site_name, $linkData);
             }
-
-            $size = filesize($local_path);
-            if ($size === false) {
-                error_log("Backup stepUploadDropbox: cannot determine file size — $local_path");
-                continue;
-            }
-
-            $fp = fopen($local_path, 'rb');
-            if (!$fp) {
-                error_log("Backup stepUploadDropbox: cannot open file — $local_path");
-                continue;
-            }
-
-            try {
-                $drops->SendFile($access_token, $full_backup_path . '/' . $part, $fp, $size);
-                error_log("Backup stepUploadDropbox: uploaded $part");
-            } catch (\Exception $e) {
-                error_log("Backup stepUploadDropbox: error uploading $part — " . $e->getMessage());
-            } finally {
-                // Always close the file handle, even if an exception was thrown
-                if (is_resource($fp)) {
-                    fclose($fp);
-                }
-            }
+            error_log("Backup step 5 done: all files uploaded");
+            return 'done';
         }
 
-        // Get or create a shared link for the backup folder and notify Google
-        $linkData = $drops->getOrCreateSharedLinkForFolder(
-            $access_token,
-            '/Secondary Backups/' . $full_backup_path
-        );
+        // Upload current file
+        $part       = $all_parts[$index];
+        $local_path = $this->tmp_backup_dir . '/' . $part;
 
-        if ($linkData !== false && function_exists('sendtoGoogleUrls')) {
-            sendtoGoogleUrls($site_name, $linkData);
+        if (!file_exists($local_path)) {
+            error_log("Backup stepUploadNextFile: file not found, skipping — $local_path");
+            $this->upload_index = $index + 1;
+            $this->saveState();
+            return 'continue';
         }
 
-        error_log("Backup step 5 done: all files uploaded to Dropbox");
-        return true;
+        $size = filesize($local_path);
+        $fp   = fopen($local_path, 'rb');
+
+        if (!$fp || $size === false) {
+            error_log("Backup stepUploadNextFile: cannot open — $local_path");
+            $this->upload_index = $index + 1;
+            $this->saveState();
+            return 'continue';
+        }
+
+        try {
+            $drops->SendFile($access_token, $full_backup_path . '/' . $part, $fp, $size);
+            error_log("Backup stepUploadNextFile: uploaded $part");
+        } catch (\Exception $e) {
+            error_log("Backup stepUploadNextFile: error on $part — " . $e->getMessage());
+        } finally {
+            if (is_resource($fp)) fclose($fp);
+        }
+
+        // Move to next file
+        $this->upload_index = $index + 1;
+        $this->saveState();
+        return 'continue';
     }
 
     /**
