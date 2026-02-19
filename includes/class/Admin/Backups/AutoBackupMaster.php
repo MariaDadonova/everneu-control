@@ -548,10 +548,12 @@ class AutoBackupMaster {
         $rii   = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir));
         $files = [];
 
+        $excludeExtensions = ['sql', 'zip', 'log', 'gz'];
+
         foreach ($rii as $file) {
             if (!$file->isFile()) continue;
             $ext = pathinfo($file->getFilename(), PATHINFO_EXTENSION);
-            if ($ext === 'sql' || $ext === 'zip') continue;
+            if (in_array($ext, $excludeExtensions, true)) continue;
             $files[] = $file->getRealPath();
         }
 
