@@ -5,9 +5,34 @@ namespace EVN\Helpers;
 class Environment {
 
     public static function detect(): string {
+
+        if (!empty($_ENV['PANTHEON_ENVIRONMENT'])) {
+            switch (strtolower($_ENV['PANTHEON_ENVIRONMENT'])) {
+                case 'live':
+                    return 'production';
+                case 'test':
+                    return 'staging';
+                case 'dev':
+                    return 'development';
+            }
+        }
+
+        if (!empty($_ENV['WP_ENV'])) {
+            switch (strtolower($_ENV['WP_ENV'])) {
+                case 'production':
+                case 'prod':
+                    return 'production';
+                case 'staging':
+                    return 'staging';
+                case 'development':
+                case 'dev':
+                    return 'development';
+            }
+        }
+
         $url = get_home_url();
 
-        if (stripos($url, 'wpenginepowered.com') === false && stripos($url, 'wpengine.com') === false) {
+        if (stripos($url, 'wpenginepowered.com') === false && stripos($url, 'wpengine.com') === false && stripos($url, 'pantheonsite.io') === false) {
             return 'production';
         } elseif (stripos($url, 'stg') !== false) {
             return 'staging';
