@@ -21,6 +21,9 @@ class EverneuControlPlugin
         // Add custom cron intervals
         add_filter('cron_schedules', ['\EVN\Helpers\CronInterval', 'add_custom_schedules']);
 
+        require_once __DIR__ . '/Admin/Settings/GTM/GTMTagPriority.php';
+        new \EVN\Admin\Settings\GTM\GTMTagPriority();
+
         // enqueue global styles/scripts here?
     }
 

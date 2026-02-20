@@ -37,6 +37,7 @@ class Settings
     public function display_settings_ui() {
 
         require_once __DIR__ . '/SVG/AllowSVGUpload.php';
+        require_once __DIR__ . '/GTM/GTMTagPriority.php';
         //require_once __DIR__. '/SiteMap/SiteMapClass.php';
         require_once __DIR__ . '/Updater/UpdaterForm.php';
         require_once __DIR__ . '/GoogleAPIKey/KeyForm.php';
@@ -51,7 +52,7 @@ class Settings
                 <!-- <input id="sitemap" type="radio" name="tabs" checked>
                 <label for="sitemap">Site map</label>-->
                 <input id="svg" type="radio" name="tabs" checked>
-                <label for="svg">SVG</label>
+                <label for="svg">Advanced</label>
                 <input id="github" type="radio" name="tabs">
                 <label for="github">Updates</label>
                 <input id="googleapi" type="radio" name="tabs">
@@ -64,6 +65,11 @@ class Settings
                         $svg_obj = new SVG\AllowSVGUpload;
                         $svg_obj->display_svg_ui();
                     ?></p>
+
+                    <p><?php
+                        $gtm_obj = new GTM\GTMTagPriority;
+                        $gtm_obj->display_gtm_ui();
+                        ?></p>
                 </section>
                 <section id="content-github">
                     <p><?php
