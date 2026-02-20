@@ -49,7 +49,9 @@ class BackupCronHandler {
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
         if ($backup->stepArchiveFolders()) {
-            wp_schedule_single_event(time() + 5, 'backup_step_upload_dropbox');
+            wp_clear_scheduled_hook('backup_step_upload_dropbox');
+            $scheduled = wp_schedule_single_event(time() + 5, 'backup_step_upload_dropbox');
+            error_log('Scheduled upload_dropbox: ' . var_export($scheduled, true));
         }
     }
 
@@ -57,11 +59,14 @@ class BackupCronHandler {
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
 
+        error_log('step_upload_dropbox CALLED');
         $result = $backup->stepUploadNextFile();
 
         if ($result === 'done') {
+            wp_clear_scheduled_hook('backup_step_cleanup');
             wp_schedule_single_event(time() + 5, 'backup_step_cleanup');
         } elseif ($result === 'continue') {
+            wp_clear_scheduled_hook('backup_step_upload_dropbox');
             wp_schedule_single_event(time() + 5, 'backup_step_upload_dropbox');
         } else {
             error_log('Backup stepUploadDropbox: fatal error, stopping');

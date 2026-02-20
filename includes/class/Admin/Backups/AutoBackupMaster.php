@@ -21,7 +21,7 @@ require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
  *   Step 1 (initBackup)         — Create temp directory, copy site files
  *   Step 2 (stepDumpDb)         — Generate SQL dump via MySql class
  *   Step 3 (stepArchiveDb)      — Move SQL file and zip it
- *   Step 4 (stepArchiveFolders) — Zip wp-admin, wp-content, wp-includes and root files
+ *   Step 4 (stepArchiveFolders) — Zip wp-content and root files (wp-admin/wp-includes skipped)
  *   Step 5 (stepUploadDropbox)  — Upload all archives and metadata.json to Dropbox
  *   Step 6 (stepCleanup)        — Delete temp directory and clear saved state
  */
@@ -97,13 +97,23 @@ class AutoBackupMaster {
     /**
      * Step 1: Initialize backup.
      *
-     * Creates a unique temporary directory and copies all site files into it,
+     * Removes any leftover temp dirs from previous failed backups,
+     * creates a unique temporary directory and copies all site files into it,
      * excluding directories that are not needed in the backup.
      *
      * @return bool True on success, false if the temp directory could not be created.
      */
     public function initBackup(): bool {
         $site_name = $_SERVER['HTTP_HOST'];
+
+        // Clean up leftover temp dirs from previous failed/interrupted backups
+        $site_slug = str_replace(['.', ' ', ':'], ['_', '_', '-'], $site_name);
+        foreach (glob(sys_get_temp_dir() . '/' . $site_slug . '*') ?: [] as $old_dir) {
+            if (is_dir($old_dir)) {
+                $this->deleteDir($old_dir);
+                error_log("Backup initBackup: removed old temp dir — $old_dir");
+            }
+        }
 
         $this->backup_name    = $site_name . date('_Y-m-d_H-i-s');
         $this->tmp_backup_dir = sys_get_temp_dir() . '/' . str_replace(
@@ -233,7 +243,11 @@ class AutoBackupMaster {
             return false;
         }
 
-        $this->db_parts[] = 'db_backup.zip';
+        // FIX: prevent duplicates if step runs more than once
+        if (!in_array('db_backup.zip', $this->db_parts, true)) {
+            $this->db_parts[] = 'db_backup.zip';
+        }
+
         $this->saveState();
         error_log("Backup step 3 done: db_backup.zip created at $db_zip");
         return true;
@@ -242,93 +256,62 @@ class AutoBackupMaster {
     /**
      * Step 4: Archive site folders and root files.
      *
-     * Creates separate zip archives for wp-admin, wp-content, and wp-includes.
-     * Remaining root-level files (excluding .zip and .sql) are packed into root_files.zip.
-     * Also writes metadata.json with the list of all archive parts and creation time.
+     * Creates separate zip archives for each wp-content subdirectory.
+     * wp-admin and wp-includes are skipped — they are standard WP core files
+     * and can be restored from the official WordPress distribution.
+     * Root-level files (excluding .zip, .sql, .gz, .tmp, pclzip-*) are packed
+     * into root_files.zip.
+     * Also writes metadata.json with the list of all archive parts and WP version.
      *
-     * @return bool True when archiving is complete (even if some folders were skipped).
+     * @return bool True when archiving is complete.
      */
     public function stepArchiveFolders(): bool {
         if (empty($this->tmp_backup_dir)) {
-            error_log("Backup stepArchiveFolders: no state found, cannot proceed");
+            error_log("Backup stepArchiveFolders: no state found");
             return false;
         }
 
         $this->archiveWpContent();
 
-        $folders = ['wp-admin', 'wp-includes'];
+        // wp-admin and wp-includes are standard WP core files — skip archiving
+        error_log("Backup step 4: skipping wp-admin/wp-includes (standard WP core files)");
 
-        foreach ($folders as $folder) {
-            $src = $this->tmp_backup_dir . '/' . $folder;
-
-            if (!is_dir($src)) {
-                error_log("Backup stepArchiveFolders: folder not found, skipping — $src");
-                continue;
-            }
-
-            $files_to_add = [];
-            foreach ($this->getFilesRecursive($src) as $f) {
-                $files_to_add[] = [
-                    PCLZIP_ATT_FILE_NAME          => $f,
-                    // Preserve relative path inside the archive
-                    PCLZIP_ATT_FILE_NEW_FULL_NAME => substr($f, strlen($this->tmp_backup_dir) + 1),
-                ];
-            }
-
-            // Skip empty folders to avoid PclZip errors
-            if (empty($files_to_add)) {
-                error_log("Backup stepArchiveFolders: no files found in $folder, skipping");
-                continue;
-            }
-
-            $zip_name = $this->tmp_backup_dir . '/' . $folder . '.zip';
-            $archive  = new \PclZip($zip_name);
-
-            if ($archive->create($files_to_add)) {
-                $this->file_parts[] = $folder . '.zip';
-                error_log("Backup step 4: archived $folder → $zip_name");
-            } else {
-                error_log("Backup stepArchiveFolders: failed to archive $folder — " . $archive->errorInfo(true));
-            }
-        }
-
-        // Collect root-level files, excluding already created archives and SQL files
+        // Archive root files, excluding zip/sql/gz/tmp and PclZip temp files
         $root_files = array_filter(glob($this->tmp_backup_dir . '/*') ?: [], function ($f) {
             if (!is_file($f)) return false;
-            if (in_array(basename($f), ['db_backup.zip', 'metadata.json'], true)) return false;
-            $ext = pathinfo($f, PATHINFO_EXTENSION);
-            return $ext !== 'zip' && $ext !== 'sql';
+            $base = basename($f);
+            $ext  = pathinfo($f, PATHINFO_EXTENSION);
+            if (in_array($base, ['db_backup.zip', 'metadata.json'], true)) return false;
+            if (str_starts_with($base, 'pclzip-')) return false;
+            if (in_array($ext, ['zip', 'sql', 'gz', 'tmp'], true)) return false;
+            return true;
         });
 
         if (!empty($root_files)) {
-            $files_to_add = [];
-            foreach ($root_files as $f) {
-                $files_to_add[] = [
-                    PCLZIP_ATT_FILE_NAME          => $f,
-                    PCLZIP_ATT_FILE_NEW_FULL_NAME => basename($f),
-                ];
-            }
-
             $zip_name = $this->tmp_backup_dir . '/root_files.zip';
-            $archive  = new \PclZip($zip_name);
-
-            if ($archive->create($files_to_add)) {
-                $this->file_parts[] = 'root_files.zip';
-                error_log("Backup step 4: archived root files → $zip_name");
-            } else {
-                error_log("Backup stepArchiveFolders: failed to archive root files — " . $archive->errorInfo(true));
+            $zip      = new \ZipArchive();
+            if ($zip->open($zip_name, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
+                foreach ($root_files as $f) {
+                    $zip->addFile($f, basename($f));
+                }
+                $zip->close();
+                // FIX: prevent duplicates if step runs more than once
+                if (!in_array('root_files.zip', $this->file_parts, true)) {
+                    $this->file_parts[] = 'root_files.zip';
+                }
+                error_log("Backup step 4: archived root files");
             }
         }
 
-        // Write metadata.json — used during restore to know which parts belong to this backup
-        $metadata = [
-            'db'         => $this->db_parts,
-            'files'      => $this->file_parts,
-            'created_at' => date('Y-m-d H:i:s'),
-        ];
+        error_log("Backup step 4: writing metadata.json");
         file_put_contents(
             $this->tmp_backup_dir . '/metadata.json',
-            json_encode($metadata, JSON_PRETTY_PRINT)
+            json_encode([
+                'db'         => $this->db_parts,
+                'files'      => $this->file_parts,
+                'wp_version' => get_bloginfo('version'),
+                'created_at' => date('Y-m-d H:i:s'),
+            ], JSON_PRETTY_PRINT)
         );
 
         $this->saveState();
@@ -344,7 +327,15 @@ class AutoBackupMaster {
         $subdirs = glob($wp_content_src . '/*', GLOB_ONLYDIR) ?: [];
 
         foreach ($subdirs as $subdir) {
-            $subdir_name = basename($subdir);
+            $subdir_name  = basename($subdir);
+            $zip_filename = 'wp-content_' . $subdir_name . '.zip';
+
+            // FIX: skip if already archived (step retry protection)
+            if (in_array($zip_filename, $this->file_parts, true)) {
+                error_log("Backup: already archived, skipping — wp-content/$subdir_name");
+                continue;
+            }
+
             $files_to_add = [];
 
             foreach ($this->getFilesRecursive($subdir) as $f) {
@@ -356,11 +347,11 @@ class AutoBackupMaster {
 
             if (empty($files_to_add)) continue;
 
-            $zip_name = $this->tmp_backup_dir . '/wp-content_' . $subdir_name . '.zip';
+            $zip_name = $this->tmp_backup_dir . '/' . $zip_filename;
             $archive  = new \PclZip($zip_name);
 
             if ($archive->create($files_to_add)) {
-                $this->file_parts[] = 'wp-content_' . $subdir_name . '.zip';
+                $this->file_parts[] = $zip_filename;
                 error_log("Backup: archived wp-content/$subdir_name");
             } else {
                 error_log("Backup: failed wp-content/$subdir_name — " . $archive->errorInfo(true));
@@ -369,7 +360,7 @@ class AutoBackupMaster {
 
         // Archive root files of wp-content (non-directories)
         $root_files_in_wpc = array_filter(glob($wp_content_src . '/*') ?: [], 'is_file');
-        if (!empty($root_files_in_wpc)) {
+        if (!empty($root_files_in_wpc) && !in_array('wp-content_root.zip', $this->file_parts, true)) {
             $files_to_add = [];
             foreach ($root_files_in_wpc as $f) {
                 $files_to_add[] = [
@@ -538,7 +529,7 @@ class AutoBackupMaster {
 
     /**
      * Recursively collect all files in a directory.
-     * Skips .sql and .zip files as they are handled separately.
+     * Skips .sql, .zip, .log and .gz files.
      *
      * @param  string $dir Directory to scan.
      * @return array  Array of absolute file paths.
