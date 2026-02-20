@@ -1,5 +1,30 @@
 *{box-sizing:border-box}
 
+/* Styles for table */
+.tg {
+    width: 100%;
+    margin-bottom: 20px;
+    border: 15px solid #e7f4ff;
+    border-top: 5px solid #e7f4ff;
+    border-collapse: collapse;
+}
+
+.tg th {
+    font-weight: bold;
+    padding: 5px;
+    background: #e7f4ff;
+    border: none;
+    border-bottom: 5px solid #e7f4ff;
+    text-align: center;
+}
+
+.tg td {
+    padding: 5px;
+    border: none;
+    border-bottom: 5px solid #e7f4ff;
+    text-align: center;
+}
+
 .tabs {
     width: 100%;
     padding: 0px;
@@ -61,7 +86,9 @@ input:checked + label {
 }
 
 /* Keys form styles */
-.ev-form input[type="text"] {
+.ev-form input[type="text"],
+.ev-form input[type="number"],
+.ev-form textarea {
     padding: 5px 10px;
     margin: 0 !important;
     border-radius: 0px;
