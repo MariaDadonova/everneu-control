@@ -21,6 +21,7 @@ class BackupCronHandler {
             require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
             $backup = new AutoBackupMaster();
             if ($backup->initBackup()) {
+                wp_clear_scheduled_hook('backup_step_dump_db');
                 wp_schedule_single_event(time() + 5, 'backup_step_dump_db');
                 error_log('Backup initiated successfully.');
             } else {
@@ -33,6 +34,7 @@ class BackupCronHandler {
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
         if ($backup->stepDumpDb()) {
+            wp_clear_scheduled_hook('backup_step_archive_db');
             wp_schedule_single_event(time() + 5, 'backup_step_archive_db');
         }
     }
@@ -41,6 +43,7 @@ class BackupCronHandler {
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
         if ($backup->stepArchiveDb()) {
+            wp_clear_scheduled_hook('backup_step_archive_folders');
             wp_schedule_single_event(time() + 5, 'backup_step_archive_folders');
         }
     }
