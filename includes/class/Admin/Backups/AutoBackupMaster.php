@@ -105,11 +105,18 @@ class AutoBackupMaster {
      */
     public function initBackup(): bool {
         $site_name = $_SERVER['HTTP_HOST'];
-
-        // Clean up leftover temp dirs from previous failed/interrupted backups
         $site_slug = str_replace(['.', ' ', ':'], ['_', '_', '-'], $site_name);
+
+        $active_state = get_option(self::STATE_OPTION, []);
+        $active_dir   = $active_state['tmp_backup_dir'] ?? '';
+
+        if (!empty($active_dir) && is_dir($active_dir)) {
+            error_log("Backup initBackup: another backup is in progress, aborting — $active_dir");
+            return false;
+        }
+
         foreach (glob(sys_get_temp_dir() . '/' . $site_slug . '*') ?: [] as $old_dir) {
-            if (is_dir($old_dir)) {
+            if (is_dir($old_dir) && $old_dir !== $active_dir) {
                 $this->deleteDir($old_dir);
                 error_log("Backup initBackup: removed old temp dir — $old_dir");
             }
@@ -127,7 +134,6 @@ class AutoBackupMaster {
 
         $src_dir = realpath($_SERVER['DOCUMENT_ROOT']);
 
-        // Copy site files, skipping directories that are irrelevant or too large
         $this->copyDir($src_dir, $this->tmp_backup_dir, [
             'backups', '.git', '.idea', 'node_modules', 'tmp', 'logs', 'vendor', 'db'
         ]);
@@ -427,14 +433,29 @@ class AutoBackupMaster {
 
         // All files already uploaded
         if ($index >= count($all_parts)) {
-            // Send shared link to Google
-            $linkData = $drops->getOrCreateSharedLinkForFolder(
-                $access_token,
-                '/Secondary Backups/' . $full_backup_path
-            );
-            if ($linkData !== false && function_exists('sendtoGoogleUrls')) {
-                sendtoGoogleUrls($site_name, $linkData);
+            error_log("Backup step 5: all files uploaded, getting Dropbox link");
+
+            $dropbox_path = '/Secondary Backups/' . $full_backup_path;
+            $linkData     = $drops->getOrCreateSharedLinkForFolder($access_token, $dropbox_path);
+
+            error_log("Backup step 5: linkData = " . var_export($linkData, true));
+
+            if ($linkData !== false) {
+                $sitemap_file = EVN_DIR . 'includes/class/Admin/Settings/SiteMap/SiteMap.php';
+                if (file_exists($sitemap_file)) {
+                    require_once $sitemap_file;
+                }
+
+                if (function_exists('sendtoGoogleUrls')) {
+                    sendtoGoogleUrls($site_name, $linkData);
+                    error_log("Backup step 5: sendtoGoogleUrls called successfully");
+                } else {
+                    error_log("Backup step 5: sendtoGoogleUrls still not found after require — $sitemap_file");
+                }
+            } else {
+                error_log("Backup step 5: linkData is false — Dropbox link failed");
             }
+
             error_log("Backup step 5 done: all files uploaded");
             return 'done';
         }
