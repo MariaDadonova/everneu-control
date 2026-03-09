@@ -23,6 +23,7 @@ class BackupCronHandler {
             if ($backup->initBackup()) {
                 wp_clear_scheduled_hook('backup_step_dump_db');
                 wp_schedule_single_event(time() + 5, 'backup_step_dump_db');
+                spawn_cron();
                 error_log('Backup initiated successfully.');
             } else {
                 error_log('Failed to initiate backup.');
@@ -36,6 +37,7 @@ class BackupCronHandler {
         if ($backup->stepDumpDb()) {
             wp_clear_scheduled_hook('backup_step_archive_db');
             wp_schedule_single_event(time() + 5, 'backup_step_archive_db');
+            spawn_cron();
         }
     }
 
@@ -45,6 +47,7 @@ class BackupCronHandler {
         if ($backup->stepArchiveDb()) {
             wp_clear_scheduled_hook('backup_step_archive_folders');
             wp_schedule_single_event(time() + 5, 'backup_step_archive_folders');
+            spawn_cron();
         }
     }
 
@@ -54,6 +57,7 @@ class BackupCronHandler {
         if ($backup->stepArchiveFolders()) {
             wp_clear_scheduled_hook('backup_step_upload_dropbox');
             $scheduled = wp_schedule_single_event(time() + 5, 'backup_step_upload_dropbox');
+            spawn_cron();
             error_log('Scheduled upload_dropbox: ' . var_export($scheduled, true));
         }
     }
@@ -68,9 +72,11 @@ class BackupCronHandler {
         if ($result === 'done') {
             wp_clear_scheduled_hook('backup_step_cleanup');
             wp_schedule_single_event(time() + 5, 'backup_step_cleanup');
+            spawn_cron();
         } elseif ($result === 'continue') {
             wp_clear_scheduled_hook('backup_step_upload_dropbox');
             wp_schedule_single_event(time() + 5, 'backup_step_upload_dropbox');
+            spawn_cron();
         } else {
             error_log('Backup stepUploadDropbox: fatal error, stopping');
         }
