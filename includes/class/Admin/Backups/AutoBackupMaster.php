@@ -158,8 +158,7 @@ class AutoBackupMaster {
         }
 
         // Clearing old sql files from hung backups
-        $wp_content = realpath(WP_CONTENT_DIR);
-        foreach (glob($wp_content . '/*.sql') ?: [] as $old_sql) {
+        foreach (glob($this->tmp_backup_dir . '/*.sql') ?: [] as $old_sql) {
             @unlink($old_sql);
             error_log("Backup stepDumpDb: removed stale sql — $old_sql");
         }
@@ -184,7 +183,7 @@ class AutoBackupMaster {
             return false;
         }
 
-        $result = $database->db_backup($valid_tables);
+        $result = $database->db_backup($valid_tables, $this->tmp_backup_dir);
 
         if ($result === false) {
             error_log("Backup stepDumpDb: dump failed");
@@ -216,12 +215,10 @@ class AutoBackupMaster {
             return false;
         }
 
-        // MySql::db_backup() saves the .sql file into wp-content/
-        $wp_content = realpath(WP_CONTENT_DIR);
-        $sql_files  = glob($wp_content . '/*.sql') ?: [];
+        $sql_files = glob($this->tmp_backup_dir . '/*.sql') ?: [];
 
         if (empty($sql_files)) {
-            error_log("Backup stepArchiveDb: no SQL files found in $wp_content");
+            error_log("Backup stepArchiveDb: no SQL files found in {$this->tmp_backup_dir}");
             return false;
         }
 

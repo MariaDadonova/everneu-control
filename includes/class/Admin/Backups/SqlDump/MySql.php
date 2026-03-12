@@ -109,7 +109,7 @@ class MySql
 
             // Batch by $row_inc
 
-           if ( $segment == 'none' ) {
+            if ( $segment == 'none' ) {
                 $row_start = 0;
                 $row_inc   = 25;
             } else {
@@ -224,19 +224,23 @@ class MySql
         return true;
     }
 
-    function db_backup($core_tables) {
+    function db_backup($core_tables, $backup_dir = '') {
         global $table_prefix, $wpdb;
 
-        $backup_dir = $_SERVER['DOCUMENT_ROOT'].'/wp-content/';
+        if (empty($backup_dir)) {
+            $backup_dir = $_SERVER['DOCUMENT_ROOT'] . '/wp-content/';
+        }
 
-        if ( is_writable( $backup_dir ) ) {
-            $this->fp = $this->open( $backup_dir . $this->backup_filename );
-            if ( ! $this->fp ) {
-                $this->error( __( 'Could not open the backup file for writing!', 'wp-db-backup' ) );
+        $backup_dir = rtrim($backup_dir, '/') . '/';
+
+        if (is_writable($backup_dir)) {
+            $this->fp = $this->open($backup_dir . $this->backup_filename);
+            if (!$this->fp) {
+                $this->error(__('Could not open the backup file for writing!', 'wp-db-backup'));
                 return false;
             }
         } else {
-            $this->error( __( 'The backup directory is not writeable!', 'wp-db-backup' ) );
+            $this->error(__('The backup directory is not writeable!', 'wp-db-backup'));
             return false;
         }
 
@@ -249,7 +253,7 @@ class MySql
         $this->stow( "# --------------------------------------------------------\n" );
 
 
-            $tables = $core_tables;
+        $tables = $core_tables;
 
         foreach ( $tables as $table ) {
             // Increase script execution time-limit to 15 min for every table.

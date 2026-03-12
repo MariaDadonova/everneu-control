@@ -32,26 +32,37 @@ class BackupCronHandler {
     }
 
     public function step_dump_db() {
+        error_log('Backup step_dump_db CALLED');
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
         if ($backup->stepDumpDb()) {
             wp_clear_scheduled_hook('backup_step_archive_db');
             wp_schedule_single_event(time() + 5, 'backup_step_archive_db');
             spawn_cron();
+        } else {
+            error_log('Backup step_dump_db FAILED — scheduling cleanup');
+            wp_schedule_single_event(time() + 5, 'backup_step_cleanup');
+            spawn_cron();
         }
     }
 
     public function step_archive_db() {
+        error_log('Backup step_archive_db CALLED');
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
         if ($backup->stepArchiveDb()) {
             wp_clear_scheduled_hook('backup_step_archive_folders');
             wp_schedule_single_event(time() + 5, 'backup_step_archive_folders');
             spawn_cron();
+        } else {
+            error_log('Backup step_archive_db FAILED — scheduling cleanup');
+            wp_schedule_single_event(time() + 5, 'backup_step_cleanup');
+            spawn_cron();
         }
     }
 
     public function step_archive_folders() {
+        error_log('Backup step_archive_folders CALLED');
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
         if ($backup->stepArchiveFolders()) {
@@ -59,6 +70,10 @@ class BackupCronHandler {
             $scheduled = wp_schedule_single_event(time() + 5, 'backup_step_upload_dropbox');
             spawn_cron();
             error_log('Scheduled upload_dropbox: ' . var_export($scheduled, true));
+        } else {
+            error_log('Backup step_archive_folders FAILED — scheduling cleanup');
+            wp_schedule_single_event(time() + 5, 'backup_step_cleanup');
+            spawn_cron();
         }
     }
 
