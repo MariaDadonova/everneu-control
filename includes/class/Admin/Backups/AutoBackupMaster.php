@@ -114,8 +114,7 @@ class AutoBackupMaster {
             error_log("Backup initBackup: another backup is in progress, aborting — $active_dir");
             return false;
         }
-
-        foreach (glob(sys_get_temp_dir() . '/' . $site_slug . '*') ?: [] as $old_dir) {
+        foreach (glob(wp_upload_dir()['basedir'] . '/' . $site_slug . '*') ?: [] as $old_dir) {
             if (is_dir($old_dir) && $old_dir !== $active_dir) {
                 $this->deleteDir($old_dir);
                 error_log("Backup initBackup: removed old temp dir — $old_dir");
@@ -123,7 +122,7 @@ class AutoBackupMaster {
         }
 
         $this->backup_name    = $site_name . date('_Y-m-d_H-i-s');
-        $this->tmp_backup_dir = sys_get_temp_dir() . '/' . str_replace(
+        $this->tmp_backup_dir = wp_upload_dir()['basedir'] . '/' . str_replace(
                 ['.', ' ', ':'], ['_', '_', '-'], $this->backup_name
             );
 
