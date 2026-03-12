@@ -18,10 +18,10 @@ require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
  * between steps using wp_options.
  *
  * Backup flow:
- *   Step 1 (initBackup)         — Create temp directory, copy site files
+ *   Step 1 (initBackup)         — Create temp directory
  *   Step 2 (stepDumpDb)         — Generate SQL dump via MySql class
- *   Step 3 (stepArchiveDb)      — Move SQL file and zip it
- *   Step 4 (stepArchiveFolders) — Zip wp-content and root files (wp-admin/wp-includes skipped)
+ *   Step 3 (stepArchiveDb)      — Zip SQL dump into db_backup.zip
+ *   Step 4 (stepArchiveFolders) — Zip wp-content subdirs and root files directly from WP_CONTENT_DIR
  *   Step 5 (stepUploadDropbox)  — Upload all archives and metadata.json to Dropbox
  *   Step 6 (stepCleanup)        — Delete temp directory and clear saved state
  */
@@ -56,9 +56,6 @@ class AutoBackupMaster {
     // State management
     // -------------------------------------------------------------------------
 
-    /**
-     * Load backup state from wp_options into class properties.
-     */
     private function loadState() {
         $state = get_option(self::STATE_OPTION, []);
         if (!empty($state)) {
@@ -70,9 +67,6 @@ class AutoBackupMaster {
         }
     }
 
-    /**
-     * Persist current backup state to wp_options so the next cron step can use it.
-     */
     private function saveState() {
         update_option(self::STATE_OPTION, [
             'tmp_backup_dir' => $this->tmp_backup_dir,
@@ -83,9 +77,6 @@ class AutoBackupMaster {
         ]);
     }
 
-    /**
-     * Remove backup state from wp_options after the process is complete.
-     */
     private function clearState() {
         delete_option(self::STATE_OPTION);
     }
@@ -97,11 +88,9 @@ class AutoBackupMaster {
     /**
      * Step 1: Initialize backup.
      *
-     * Removes any leftover temp dirs from previous failed backups,
-     * creates a unique temporary directory and copies all site files into it,
-     * excluding directories that are not needed in the backup.
-     *
-     * @return bool True on success, false if the temp directory could not be created.
+     * Removes leftover temp dirs from previous failed backups,
+     * creates a unique temporary directory in wp-content/uploads.
+     * No file copying — archiving is done directly from WP_CONTENT_DIR in step 4.
      */
     public function initBackup(): bool {
         $site_name = $_SERVER['HTTP_HOST'];
@@ -114,6 +103,7 @@ class AutoBackupMaster {
             error_log("Backup initBackup: another backup is in progress, aborting — $active_dir");
             return false;
         }
+
         foreach (glob(wp_upload_dir()['basedir'] . '/' . $site_slug . '*') ?: [] as $old_dir) {
             if (is_dir($old_dir) && $old_dir !== $active_dir) {
                 $this->deleteDir($old_dir);
@@ -131,24 +121,13 @@ class AutoBackupMaster {
             return false;
         }
 
-        $src_dir = realpath($_SERVER['DOCUMENT_ROOT']);
-
-        $this->copyDir($src_dir, $this->tmp_backup_dir, [
-            'backups', '.git', '.idea', 'node_modules', 'tmp', 'logs', 'vendor', 'db'
-        ]);
-
         $this->saveState();
-        error_log("Backup step 1 done: files copied to {$this->tmp_backup_dir}");
+        error_log("Backup step 1 done: tmp dir created at {$this->tmp_backup_dir}");
         return true;
     }
 
     /**
      * Step 2: Create SQL dump.
-     *
-     * Uses the MySql class to dump all database tables into a .sql file.
-     * The file is saved to wp-content/ by MySql::db_backup().
-     *
-     * @return bool True if the dump was created successfully, false otherwise.
      */
     public function stepDumpDb(): bool {
         if (empty($this->tmp_backup_dir)) {
@@ -156,7 +135,6 @@ class AutoBackupMaster {
             return false;
         }
 
-        // Clearing old sql files from hung backups
         foreach (glob($this->tmp_backup_dir . '/*.sql') ?: [] as $old_sql) {
             @unlink($old_sql);
             error_log("Backup stepDumpDb: removed stale sql — $old_sql");
@@ -165,7 +143,6 @@ class AutoBackupMaster {
         $database   = new MySql();
         $all_tables = $database->get_tables();
 
-        // Filter out broken VIEWs before dumping
         global $wpdb;
         $valid_tables = [];
         foreach ($all_tables as $table) {
@@ -194,12 +171,7 @@ class AutoBackupMaster {
     }
 
     /**
-     * Step 3: Archive the SQL dump.
-     *
-     * Moves the .sql file from wp-content/ to the temp backup directory,
-     * then compresses it into db_backup.zip.
-     *
-     * @return bool True if the archive was created successfully, false otherwise.
+     * Step 3: Archive the SQL dump into db_backup.zip.
      */
     public function stepArchiveDb(): bool {
         if (empty($this->tmp_backup_dir)) {
@@ -221,7 +193,6 @@ class AutoBackupMaster {
             return false;
         }
 
-        // Move SQL files into the temp db/ subdirectory
         foreach ($sql_files as $sql_file) {
             $dest = $db_dir . '/' . basename($sql_file);
             if (!rename($sql_file, $dest)) {
@@ -252,7 +223,6 @@ class AutoBackupMaster {
             return false;
         }
 
-        // FIX: prevent duplicates if step runs more than once
         if (!in_array('db_backup.zip', $this->db_parts, true)) {
             $this->db_parts[] = 'db_backup.zip';
         }
@@ -263,16 +233,8 @@ class AutoBackupMaster {
     }
 
     /**
-     * Step 4: Archive site folders and root files.
-     *
-     * Creates separate zip archives for each wp-content subdirectory.
-     * wp-admin and wp-includes are skipped — they are standard WP core files
-     * and can be restored from the official WordPress distribution.
-     * Root-level files (excluding .zip, .sql, .gz, .tmp, pclzip-*) are packed
-     * into root_files.zip.
-     * Also writes metadata.json with the list of all archive parts and WP version.
-     *
-     * @return bool True when archiving is complete.
+     * Step 4: Archive wp-content subdirs and root files directly from WP_CONTENT_DIR.
+     * Skips our own tmp_backup_dir to avoid recursive archiving.
      */
     public function stepArchiveFolders(): bool {
         if (empty($this->tmp_backup_dir)) {
@@ -282,10 +244,9 @@ class AutoBackupMaster {
 
         $this->archiveWpContent();
 
-        // wp-admin and wp-includes are standard WP core files — skip archiving
         error_log("Backup step 4: skipping wp-admin/wp-includes (standard WP core files)");
 
-        // Archive root files, excluding zip/sql/gz/tmp and PclZip temp files
+        // Root files of the site (not wp-content subdirs)
         $root_files = array_filter(glob($this->tmp_backup_dir . '/*') ?: [], function ($f) {
             if (!is_file($f)) return false;
             $base = basename($f);
@@ -304,7 +265,6 @@ class AutoBackupMaster {
                     $zip->addFile($f, basename($f));
                 }
                 $zip->close();
-                // FIX: prevent duplicates if step runs more than once
                 if (!in_array('root_files.zip', $this->file_parts, true)) {
                     $this->file_parts[] = 'root_files.zip';
                 }
@@ -329,28 +289,27 @@ class AutoBackupMaster {
     }
 
     private function archiveWpContent(): void {
-        $wp_content_src = $this->tmp_backup_dir . '/wp-content';
-        if (!is_dir($wp_content_src)) return;
+        $wp_content_src = WP_CONTENT_DIR;
 
-        // Archive each subdirectory of wp-content separately
         $subdirs = glob($wp_content_src . '/*', GLOB_ONLYDIR) ?: [];
 
         foreach ($subdirs as $subdir) {
             $subdir_name  = basename($subdir);
             $zip_filename = 'wp-content_' . $subdir_name . '.zip';
 
-            // FIX: skip if already archived (step retry protection)
             if (in_array($zip_filename, $this->file_parts, true)) {
                 error_log("Backup: already archived, skipping — wp-content/$subdir_name");
                 continue;
             }
 
             $files_to_add = [];
-
             foreach ($this->getFilesRecursive($subdir) as $f) {
+                // Skip our own tmp dir (it lives inside uploads)
+                if (strpos($f, $this->tmp_backup_dir) === 0) continue;
+
                 $files_to_add[] = [
                     PCLZIP_ATT_FILE_NAME          => $f,
-                    PCLZIP_ATT_FILE_NEW_FULL_NAME => substr($f, strlen($this->tmp_backup_dir) + 1),
+                    PCLZIP_ATT_FILE_NEW_FULL_NAME => 'wp-content/' . $subdir_name . '/' . substr($f, strlen($subdir) + 1),
                 ];
             }
 
@@ -367,8 +326,13 @@ class AutoBackupMaster {
             }
         }
 
-        // Archive root files of wp-content (non-directories)
-        $root_files_in_wpc = array_filter(glob($wp_content_src . '/*') ?: [], 'is_file');
+        // Root files of wp-content (non-directories), skip .sql files (WP Engine mysql.sql etc)
+        $root_files_in_wpc = array_filter(glob($wp_content_src . '/*') ?: [], function ($f) {
+            if (!is_file($f)) return false;
+            if (pathinfo($f, PATHINFO_EXTENSION) === 'sql') return false;
+            return true;
+        });
+
         if (!empty($root_files_in_wpc) && !in_array('wp-content_root.zip', $this->file_parts, true)) {
             $files_to_add = [];
             foreach ($root_files_in_wpc as $f) {
@@ -422,7 +386,6 @@ class AutoBackupMaster {
 
         $full_backup_path = $site_name . '/' . $this->backup_name;
 
-        // Create folders on first call (upload_index == 0)
         if (($this->upload_index ?? 0) === 0) {
             if (!$drops->GetListFolder($access_token, $site_name)) {
                 $drops->CreateFolder($access_token, $site_name);
@@ -430,11 +393,9 @@ class AutoBackupMaster {
             $drops->CreateFolder($access_token, $full_backup_path);
         }
 
-        // Get full list of files to upload
         $all_parts = array_merge($this->db_parts, $this->file_parts, ['metadata.json']);
         $index     = $this->upload_index ?? 0;
 
-        // All files already uploaded
         if ($index >= count($all_parts)) {
             error_log("Backup step 5: all files uploaded, getting Dropbox link");
 
@@ -463,7 +424,6 @@ class AutoBackupMaster {
             return 'done';
         }
 
-        // Upload current file
         $part       = $all_parts[$index];
         $local_path = $this->tmp_backup_dir . '/' . $part;
 
@@ -493,7 +453,6 @@ class AutoBackupMaster {
             if (is_resource($fp)) fclose($fp);
         }
 
-        // Move to next file
         $this->upload_index = $index + 1;
         $this->saveState();
         return 'continue';
@@ -501,9 +460,6 @@ class AutoBackupMaster {
 
     /**
      * Step 6: Clean up temporary files.
-     *
-     * Deletes the temporary backup directory and removes the saved state
-     * from wp_options, leaving no trace of the backup process on the server.
      */
     public function stepCleanup(): void {
         if (!empty($this->tmp_backup_dir)) {
@@ -511,7 +467,6 @@ class AutoBackupMaster {
             error_log("Backup step 6 done: temp directory deleted — {$this->tmp_backup_dir}");
         }
 
-        // Clear persisted state so a fresh backup can start cleanly next time
         $this->clearState();
         error_log("Backup step 6 done: state cleared");
     }
@@ -521,42 +476,8 @@ class AutoBackupMaster {
     // -------------------------------------------------------------------------
 
     /**
-     * Recursively copy a directory, skipping specified subdirectories.
-     *
-     * @param string $src        Source directory path.
-     * @param string $dst        Destination directory path.
-     * @param array  $excludeDirs Directory names to skip (e.g. ['.git', 'node_modules']).
-     */
-    private function copyDir(string $src, string $dst, array $excludeDirs = []) {
-        $dir = opendir($src);
-        if ($dir === false) {
-            error_log("copyDir: cannot open source directory — $src");
-            return;
-        }
-
-        @mkdir($dst, 0755, true);
-
-        while (false !== ($file = readdir($dir))) {
-            if ($file === '.' || $file === '..') continue;
-            if (in_array($file, $excludeDirs, true)) continue;
-
-            $srcPath = $src . DIRECTORY_SEPARATOR . $file;
-            $dstPath = $dst . DIRECTORY_SEPARATOR . $file;
-
-            is_dir($srcPath)
-                ? $this->copyDir($srcPath, $dstPath, $excludeDirs)
-                : copy($srcPath, $dstPath);
-        }
-
-        closedir($dir);
-    }
-
-    /**
      * Recursively collect all files in a directory.
      * Skips .sql, .zip, .log and .gz files.
-     *
-     * @param  string $dir Directory to scan.
-     * @return array  Array of absolute file paths.
      */
     private function getFilesRecursive(string $dir): array {
         $rii   = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir));
@@ -576,8 +497,6 @@ class AutoBackupMaster {
 
     /**
      * Recursively delete a directory and all its contents.
-     *
-     * @param string $dirPath Absolute path to the directory.
      */
     private function deleteDir(string $dirPath) {
         if (!is_dir($dirPath)) return;
