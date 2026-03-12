@@ -157,6 +157,13 @@ class AutoBackupMaster {
             return false;
         }
 
+        // Clearing old sql files from hung backups
+        $wp_content = realpath(WP_CONTENT_DIR);
+        foreach (glob($wp_content . '/*.sql') ?: [] as $old_sql) {
+            @unlink($old_sql);
+            error_log("Backup stepDumpDb: removed stale sql — $old_sql");
+        }
+
         $database   = new MySql();
         $all_tables = $database->get_tables();
 
