@@ -65,12 +65,14 @@ class EverneuControlPlugin
         require_once EVN_DIR . 'includes/class/Cron/BackupCronHandler.php';
         new \EVN\Cron\BackupCronHandler();
 
-        require_once EVN_DIR . 'includes/class/Admin/Settings/Settings.php';    
+        require_once EVN_DIR . 'includes/class/Admin/Settings/Settings.php';
         require_once EVN_DIR . 'includes/class/Admin/Backups/Backups.php';
+        require_once EVN_DIR . 'includes/class/Admin/LTS/LeadTrackingSystemSettings.php';
 
 
         new Admin\Settings\Settings;
         new Admin\Backups\Backups;
+        new Admin\LTS\LeadTrackingSystemSettings;
 
 
     }

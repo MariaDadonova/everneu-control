@@ -1,0 +1,162 @@
+/* feedback message */
+#lts-message-wrap {
+    opacity: 0;
+    height: 20px;
+    margin-bottom: 5px;
+}
+.status-connected {
+    font-weight: bold;
+}
+
+/* connection */
+.lts-disconnect {
+    margin-left: 20px;
+}
+
+/* forms */
+/* Basic styling for the multiple select element */
+select[name="lts_supported_forms[]"] {
+    width: 100%;
+    height: auto; /* Adjusts height based on the number of options */
+    padding: 8px;
+    background-color: #f9f9f9;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #333;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+    appearance: none; /* Removes the default browser styling */
+    overflow: auto; /* Allows for scrolling */
+}
+
+/* Add a more modern look by customizing the scrollbar (works in Webkit-based browsers) */
+select[name="lts_supported_forms[]"]::-webkit-scrollbar {
+    width: 8px;
+}
+
+select[name="lts_supported_forms[]"]::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+select[name="lts_supported_forms[]"]::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 4px;
+    border: 2px solid #f1f1f1; /* Adds padding around the thumb */
+}
+
+select[name="lts_supported_forms[]"]:focus {
+    border-color: #0073aa;
+    box-shadow: 0 0 5px rgba(0, 115, 170, 0.5);
+    outline: none; /* Removes the default outline */
+}
+
+/* Optional: Add a hover effect */
+select[name="lts_supported_forms[]"]:hover {
+    border-color: #999;
+}
+
+/* Style the individual options */
+select[name="lts_supported_forms[]"] option {
+    padding: 4px 8px;
+}
+
+/* Style selected options for better visibility */
+select[name="lts_supported_forms[]"] option:checked {
+    background-color: #0073aa;
+    color: white;
+}
+
+
+/* notifications */
+#lts-notifications-wrapper {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+}
+.form-notification-wrap {
+    display: flex;
+    flex-direction: column;
+    max-width: 400px;
+    width: 100%;
+}
+
+
+/** fields */
+/* General styling for the lead-fields container */
+.lead-fields {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+.lead-fields .field-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.lead-fields label {
+    flex-basis: 200px;
+}
+
+/* Styling for labels to make them stand out */
+.lead-fields label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+/* Styling for input and select elements to ensure consistency */
+.lead-fields input[type="text"],
+.lead-fields input[type="email"],
+.lead-fields select,
+.lead-fields textarea {
+    width: 100%;
+    padding: 2px 8px;
+    /*margin-bottom: 15px;*/
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+/* Specific styling for textarea to differentiate it */
+.lead-fields textarea {
+    height: 100px;
+}
+
+/* Optional: Add some hover effects for better interactivity */
+.lead-fields input[type="text"]:hover,
+.lead-fields input[type="email"]:hover,
+.lead-fields select:hover,
+.lead-fields textarea:hover {
+    border-color: #0073aa; /* WordPress admin blue */
+}
+
+/* Optional: Add focus effects for inputs to guide users */
+.lead-fields input[type="text"]:focus,
+.lead-fields input[type="email"]:focus,
+.lead-fields select:focus,
+.lead-fields textarea:focus {
+    outline: none;
+    border-color: #0073aa;
+    box-shadow: 0 0 5px rgba(0, 115, 170, 0.5);
+}
+
+/* Grouping related fields in rows to save space */
+.lead-fields .field-group {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+/* Ensuring each field in the group takes equal space */
+.lead-fields .field-group > div {
+    flex: 1;
+}
+
+/* Improving readability and spacing between groups */
+.lead-fields .field-group + .field-group {
+    margin-top: 10px;
+}
