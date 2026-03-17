@@ -20,7 +20,7 @@ class GTMTagPriority
     public function display_gtm_ui() {
         ?>
 
-        <h3 style="margin-top: 40px; margin-bottom: 30px;">Set GTM</h3>
+        <h3 style="margin-top: 40px; margin-bottom: 30px;">Set GTM in head</h3>
 
         <table class="tg" style="margin-bottom: 40px;">
             <thead>
@@ -63,6 +63,7 @@ class GTMTagPriority
             </tr>
             </tbody>
         </table>
+
 
         <?php
         // save settings
@@ -120,31 +121,143 @@ class GTMTagPriority
            </div>
          </div>
          <br><input type="submit" name="gtm_plugin_submit" class="button button-primary" value="Save">
-       </form>';
+       </form>'; ?>
+
+        <h3 style="margin-top: 40px; margin-bottom: 30px;">Set GTM in body</h3>
+        <table class="tg" style="margin-bottom: 40px;">
+            <thead>
+            <tr>
+                <th>Hook</th>
+                <th>Priority</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>wp_body_open</td>
+                <td>Immediately after body tag</td>
+            </tr>
+            <tr>
+                <td>the_content</td>
+                <td>In the middle of the content</td>
+            </tr>
+            <tr>
+                <td>wp_footer</td>
+                <td>Before /body tag</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <?php
+        // save settings
+        if (isset($_POST['gtm_body_plugin_submit'])) {
+            $gtm_body_prior = sanitize_text_field($_POST['gtm_body_priority']);
+            $gtm_code_body_priority = sanitize_text_field($_POST['gtm_code_body_priority']);
+            $gtm_body_scr = wp_unslash($_POST['gtm_body_script']);
+
+            $gtm_body_script_value = array(
+                'priority' => $gtm_body_prior,
+                'code-priority' => $gtm_code_body_priority,
+                'script'   => $gtm_body_scr
+            );
+
+            if (!get_option('ev_gtm_body_settings')) {
+                add_option('ev_gtm_body_settings', $gtm_body_script_value);
+                echo '<div id="message" class="updated"><p>GTM in body saved successfully!</p></div>';
+                error_log("GTM in body saved successfully");
+            } else {
+                update_option('ev_gtm_body_settings', $gtm_body_script_value);
+                echo '<div id="message" class="updated"><p>GTM in body updated successfully!</p></div>';
+                error_log("GTM in body updated successfully");
+            }
+        }
+
+        // get a current option
+        $gtm_body_settings = get_option('ev_gtm_body_settings');
+        if (!empty($gtm_body_settings) && is_array($gtm_body_settings)) {
+            $gtm_body_prior         = $gtm_body_settings['priority'];
+            $gtm_code_body_priority = $gtm_body_settings['code-priority'];
+            $gtm_body_scr           = $gtm_body_settings['script'];
+        } else {
+            $gtm_body_prior = $gtm_code_body_priority = $gtm_body_scr = '';
+        }
+
+
+        echo '<form method="post" class="ev-body-submit-form">
+                    <div class="ev-form">
+                        <div class="">
+                           <label id="gtm_body_script_label_priority" for="gtm_body_script_priority">Priority for hook</label>
+                        </div>
+                        <div class="">
+                           <input class="style-field" type="number" id="gtm_body_priority" name="gtm_body_priority" value="'. $gtm_body_prior .'">
+                        </div>
+                    </div>
+                    <div class="ev-form">
+                        <div class="">
+                           <label id="gtm_code_body_script_label_priority" for="gtm_code_body_script_priority">Priority in code</label>
+                        </div>
+                        <div class="">
+                           <select name="gtm_code_body_priority" id="gtm_code_body_priority">
+                                     <option value="body-open"'.selected($gtm_code_body_priority, 'body-open', false).'>wp_body_open</option>
+                                     <option value="body-middle"'.selected($gtm_code_body_priority, 'body-middle', false).'>the_content</option>
+                                     <option value="body-close"'.selected($gtm_code_body_priority, 'body-close', false).'>wp_footer</option>
+                           </select>
+                        </div>
+                    </div>
+                    <div class="ev-form">
+                        <div class="">
+                           <label id="gtm_body_script_label" for="gtm_body_script">GTM script</label>
+                        </div>
+                        <div class="">
+                           <textarea class="style-field" name="gtm_body_script" id="gtm_body_script">'. $gtm_body_scr .'</textarea>
+                        </div>
+                    </div>
+                    <br><input type="submit" name="gtm_body_plugin_submit" class="button button-primary" value="Save">
+                 </form>';
+
     }
 
     public function register_gtm_hook() {
-
-        $gtm_settings = get_option('ev_gtm_settings');
-
-        if (empty($gtm_settings['script'])) {
+        if (!Environment::isProduction()) {
             return;
         }
 
-        $priority = !empty($gtm_settings['priority'])
-            ? (int) $gtm_settings['priority']
-            : 10;
+        global $wp_filter;
 
-        if (Environment::isProduction()) {
-            global $wp_filter;
+        $gtm_settings = get_option('ev_gtm_settings');
+        if (!empty($gtm_settings['script'])) {
+            $priority = !empty($gtm_settings['priority'])
+                ? (int) $gtm_settings['priority']
+                : 10;
+            $hook = isset($wp_filter['fl_head_open'])
+                ? 'fl_head_open'
+                : 'wp_head';
+            add_action($hook, [$this, 'output_gtm'], $priority);
+        }
 
-            if (isset($wp_filter['fl_head_open'])) {
-                // Beaver Builder
-                add_action('fl_head_open', [$this, 'output_gtm'], $priority);
-                error_log('GTM hooked to fl_head_open');
+        $gtm_body_settings = get_option('ev_gtm_body_settings');
+        if (!empty($gtm_body_settings['script'])) {
+            $priority_body = !empty($gtm_body_settings['priority'])
+                ? (int) $gtm_body_settings['priority']
+                : 10;
+
+            $code_priority = $gtm_body_settings['code-priority'] ?? 'body-open';
+
+            if ($code_priority === 'body-middle') {
+                add_filter('the_content', function($content) {
+                    $gtm = get_option('ev_gtm_body_settings');
+                    if (!empty($gtm['script'])) {
+                        $content .= $gtm['script'];
+                    }
+                    return $content;
+                }, $priority_body);
             } else {
-                add_action('wp_head', [$this, 'output_gtm'], $priority);
-                error_log('GTM hooked to wp_head');
+                $hook = $code_priority === 'body-close' ? 'wp_footer' : 'wp_body_open';
+
+                if (isset($wp_filter['fl_body_open']) && $hook === 'wp_body_open') {
+                    $hook = 'fl_body_open';
+                }
+
+                add_action($hook, [$this, 'output_gtm_body'], $priority_body);
             }
         }
     }
@@ -152,6 +265,15 @@ class GTMTagPriority
     public function output_gtm() {
 
         $gtm_settings = get_option('ev_gtm_settings');
+
+        if (!empty($gtm_settings['script'])) {
+            echo $gtm_settings['script'];
+        }
+    }
+
+    public function output_gtm_body() {
+
+        $gtm_settings = get_option('ev_gtm_body_settings');
 
         if (!empty($gtm_settings['script'])) {
             echo $gtm_settings['script'];
