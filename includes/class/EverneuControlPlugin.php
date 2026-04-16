@@ -58,7 +58,6 @@ class EverneuControlPlugin
                 'master',
                 ''
             );
-            delete_site_transient('update_plugins');
         });
         /* End of this part */
 
