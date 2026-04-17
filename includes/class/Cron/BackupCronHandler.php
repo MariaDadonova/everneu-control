@@ -11,7 +11,7 @@ class BackupCronHandler {
         add_action('schedule_backup_by_month',    [$this, 'run']);
         add_action('backup_step_dump_db',         [$this, 'step_dump_db']);
         add_action('backup_step_archive_db',      [$this, 'step_archive_db']);
-        add_action('backup_step_archive_folders', [$this, 'step_archive_folders']);
+        add_action('backup_step_archive_folder',  [$this, 'step_archive_folder']);
         add_action('backup_step_upload_dropbox',  [$this, 'step_upload_dropbox']);
         add_action('backup_step_cleanup',         [$this, 'step_cleanup']);
     }
@@ -51,8 +51,9 @@ class BackupCronHandler {
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
         if ($backup->stepArchiveDb()) {
-            wp_clear_scheduled_hook('backup_step_archive_folders');
-            wp_schedule_single_event(time() + 5, 'backup_step_archive_folders');
+            $backup->initFoldersQueue();
+            wp_clear_scheduled_hook('backup_step_archive_folder');
+            wp_schedule_single_event(time() + 5, 'backup_step_archive_folder');
             spawn_cron();
         } else {
             error_log('Backup step_archive_db FAILED — scheduling cleanup');
@@ -61,17 +62,25 @@ class BackupCronHandler {
         }
     }
 
-    public function step_archive_folders() {
-        error_log('Backup step_archive_folders CALLED');
+    public function step_archive_folder() {
+        error_log('Backup step_archive_folder CALLED');
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
-        if ($backup->stepArchiveFolders()) {
-            wp_clear_scheduled_hook('backup_step_upload_dropbox');
-            $scheduled = wp_schedule_single_event(time() + 5, 'backup_step_upload_dropbox');
+        $result = $backup->stepArchiveNextFolder();
+
+        if ($result === 'continue') {
+            // There are still folders - call ourselves again
+            wp_clear_scheduled_hook('backup_step_archive_folder');
+            wp_schedule_single_event(time() + 5, 'backup_step_archive_folder');
             spawn_cron();
-            error_log('Scheduled upload_dropbox: ' . var_export($scheduled, true));
+        } elseif ($result === 'done') {
+            wp_clear_scheduled_hook('backup_step_archive_folder');
+            // All folders are ready - go to download
+            wp_clear_scheduled_hook('backup_step_upload_dropbox');
+            wp_schedule_single_event(time() + 5, 'backup_step_upload_dropbox');
+            spawn_cron();
         } else {
-            error_log('Backup step_archive_folders FAILED — scheduling cleanup');
+            error_log('Backup step_archive_folder FAILED — scheduling cleanup');
             wp_schedule_single_event(time() + 5, 'backup_step_cleanup');
             spawn_cron();
         }

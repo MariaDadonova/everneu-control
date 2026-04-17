@@ -44,6 +44,9 @@ class AutoBackupMaster {
 
     private $upload_index = 0;
 
+    /** @var array|null Queue of folders and files for archiving */
+    private $folders_queue = null;
+
     /**
      * Constructor — loads persisted state from wp_options.
      * On step 1 (initBackup) state will be empty; on steps 2-6 it will be populated.
@@ -64,6 +67,7 @@ class AutoBackupMaster {
             $this->db_parts       = $state['db_parts']       ?? [];
             $this->file_parts     = $state['file_parts']     ?? [];
             $this->upload_index   = $state['upload_index']   ?? 0;
+            $this->folders_queue  = $state['folders_queue']  ?? null;
         }
     }
 
@@ -74,6 +78,7 @@ class AutoBackupMaster {
             'db_parts'       => $this->db_parts,
             'file_parts'     => $this->file_parts,
             'upload_index'   => $this->upload_index,
+            'folders_queue'  => $this->folders_queue,
         ]);
     }
 
@@ -84,6 +89,246 @@ class AutoBackupMaster {
     // -------------------------------------------------------------------------
     // Backup steps
     // -------------------------------------------------------------------------
+
+    /**
+     * Initializes the queue: collects all subfolders of wp-content
+     * and adds a special 'wp-content-root' element for root files.
+     * Called once after stepArchiveDb.
+     */
+    public function initFoldersQueue(): void {
+        $wp_content_src = WP_CONTENT_DIR;
+        $queue = [];
+
+        $subdirs = glob($wp_content_src . '/*', GLOB_ONLYDIR) ?: [];
+        foreach ($subdirs as $subdir) {
+            $queue[] = ['type' => 'subdir', 'path' => $subdir];
+        }
+
+        // wp-content root files as a separate element
+        $queue[] = ['type' => 'wpcontent-root'];
+
+        // The site's root files are a separate element
+        $queue[] = ['type' => 'site-root'];
+
+        $this->folders_queue = $queue;
+        $this->saveState();
+        error_log('Backup initFoldersQueue: queue initialized with ' . count($queue) . ' items');
+    }
+
+    /**
+     * Processes ONE item from the queue per call.
+     * Returns 'continue' if there are still elements,
+     * 'done' if the queue is empty (writes metadata.json),
+     * 'error' if state is not found.
+     */
+    public function stepArchiveNextFolder(): string {
+        if (empty($this->tmp_backup_dir)) {
+            error_log("Backup stepArchiveNextFolder: no state found");
+            return 'error';
+        }
+
+        if ($this->folders_queue === null) {
+            error_log("Backup stepArchiveNextFolder: queue not initialized");
+            return 'error';
+        }
+
+        if (empty($this->folders_queue)) {
+            // The queue is empty - write metadata and finish
+            if (!file_exists($this->tmp_backup_dir . '/metadata.json')) {
+                $this->writeMetadata();
+            }
+            error_log("Backup stepArchiveNextFolder: queue empty, all folders done");
+            return 'done';
+        }
+
+        // Takes the first item from the queue
+        $item = array_shift($this->folders_queue);
+
+        if ($item['type'] === 'subdir') {
+            $this->archiveSubdir($item['path']);
+        } elseif ($item['type'] === 'wpcontent-root') {
+            $this->archiveWpContentRootFiles();
+        } elseif ($item['type'] === 'site-root') {
+            $this->archiveSiteRootFiles();
+        }
+
+        $this->saveState();
+
+        // Check again - if the queue is empty after shift, we finalize
+        if (empty($this->folders_queue)) {
+            $this->writeMetadata();
+            error_log("Backup stepArchiveNextFolder: last item processed, all done");
+            return 'done';
+        }
+
+        return 'continue';
+    }
+
+    /**
+     * Archives one subfolder of wp-content.
+     * If the folder is large (>200MB), it splits it into chunks.
+     */
+    private function archiveSubdir(string $subdir): void {
+        $chunk_limit  = 200 * 1024 * 1024; // 200 MB
+        $subdir_name  = basename($subdir);
+
+        $all_files = array_filter(
+            $this->getFilesRecursive($subdir),
+            fn($f) => strpos($f, $this->tmp_backup_dir) !== 0
+        );
+
+        if (empty($all_files)) {
+            error_log("Backup archiveSubdir: no files in $subdir_name, skipping");
+            return;
+        }
+
+        $total_size = array_sum(array_map('filesize', $all_files));
+
+        if ($total_size <= $chunk_limit) {
+            $zip_filename = 'wp-content_' . $subdir_name . '.zip';
+
+            if (in_array($zip_filename, $this->file_parts, true)) {
+                error_log("Backup: already archived — $zip_filename");
+                return;
+            }
+
+            $files_to_add = [];
+            foreach ($all_files as $f) {
+                $files_to_add[] = [
+                    PCLZIP_ATT_FILE_NAME          => $f,
+                    PCLZIP_ATT_FILE_NEW_FULL_NAME => 'wp-content/' . $subdir_name . '/' . substr($f, strlen($subdir) + 1),
+                ];
+            }
+
+            $archive = new \PclZip($this->tmp_backup_dir . '/' . $zip_filename);
+            if ($archive->create($files_to_add)) {
+                $this->file_parts[] = $zip_filename;
+                error_log("Backup: archived wp-content/$subdir_name ({$total_size} bytes)");
+            } else {
+                error_log("Backup: failed wp-content/$subdir_name — " . $archive->errorInfo(true));
+            }
+        } else {
+            // Divide it into parts by size
+            $chunks        = [];
+            $current_chunk = [];
+            $current_size  = 0;
+
+            foreach ($all_files as $f) {
+                $fsize = @filesize($f) ?: 0;
+                if (!empty($current_chunk) && $current_size + $fsize > $chunk_limit) {
+                    $chunks[]      = $current_chunk;
+                    $current_chunk = [];
+                    $current_size  = 0;
+                }
+                $current_chunk[] = $f;
+                $current_size   += $fsize;
+            }
+            if (!empty($current_chunk)) {
+                $chunks[] = $current_chunk;
+            }
+
+            foreach ($chunks as $i => $chunk_files) {
+                $zip_filename = 'wp-content_' . $subdir_name . '_part' . ($i + 1) . '.zip';
+
+                if (in_array($zip_filename, $this->file_parts, true)) {
+                    error_log("Backup: chunk already archived — $zip_filename");
+                    continue;
+                }
+
+                $files_to_add = [];
+                foreach ($chunk_files as $f) {
+                    $files_to_add[] = [
+                        PCLZIP_ATT_FILE_NAME          => $f,
+                        PCLZIP_ATT_FILE_NEW_FULL_NAME => 'wp-content/' . $subdir_name . '/' . substr($f, strlen($subdir) + 1),
+                    ];
+                }
+
+                $archive = new \PclZip($this->tmp_backup_dir . '/' . $zip_filename);
+                if ($archive->create($files_to_add)) {
+                    $this->file_parts[] = $zip_filename;
+                    error_log("Backup: archived chunk $zip_filename");
+                } else {
+                    error_log("Backup: failed chunk $zip_filename — " . $archive->errorInfo(true));
+                }
+            }
+        }
+    }
+
+    /**
+     * Archives wp-content root files (not folders, not .sql).
+     */
+    private function archiveWpContentRootFiles(): void {
+        if (in_array('wp-content_root.zip', $this->file_parts, true)) return;
+
+        $root_files = array_filter(glob(WP_CONTENT_DIR . '/*') ?: [], function ($f) {
+            if (!is_file($f)) return false;
+            if (pathinfo($f, PATHINFO_EXTENSION) === 'sql') return false;
+            return true;
+        });
+
+        if (empty($root_files)) return;
+
+        $files_to_add = [];
+        foreach ($root_files as $f) {
+            $files_to_add[] = [
+                PCLZIP_ATT_FILE_NAME          => $f,
+                PCLZIP_ATT_FILE_NEW_FULL_NAME => 'wp-content/' . basename($f),
+            ];
+        }
+
+        $archive = new \PclZip($this->tmp_backup_dir . '/wp-content_root.zip');
+        if ($archive->create($files_to_add)) {
+            $this->file_parts[] = 'wp-content_root.zip';
+            error_log("Backup: archived wp-content root files");
+        }
+    }
+
+    /**
+     * Archives the root files of the site (not wp-content, not service files).
+     */
+    private function archiveSiteRootFiles(): void {
+        if (in_array('root_files.zip', $this->file_parts, true)) return;
+
+        $root_files = array_filter(glob($this->tmp_backup_dir . '/*') ?: [], function ($f) {
+            if (!is_file($f)) return false;
+            $base = basename($f);
+            $ext  = pathinfo($f, PATHINFO_EXTENSION);
+            if (in_array($base, ['db_backup.zip', 'metadata.json'], true)) return false;
+            if (str_starts_with($base, 'pclzip-')) return false;
+            if (in_array($ext, ['zip', 'sql', 'gz', 'tmp'], true)) return false;
+            return true;
+        });
+
+        if (empty($root_files)) return;
+
+        $zip = new \ZipArchive();
+        if ($zip->open($this->tmp_backup_dir . '/root_files.zip', \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
+            foreach ($root_files as $f) {
+                $zip->addFile($f, basename($f));
+            }
+            $zip->close();
+            $this->file_parts[] = 'root_files.zip';
+            error_log("Backup: archived site root files");
+        }
+    }
+
+    /**
+     * Writes metadata.json with the final archive list.
+     */
+    private function writeMetadata(): void {
+        file_put_contents(
+            $this->tmp_backup_dir . '/metadata.json',
+            json_encode([
+                'db'         => $this->db_parts,
+                'files'      => $this->file_parts,
+                'wp_version' => get_bloginfo('version'),
+                'created_at' => date('Y-m-d H:i:s'),
+            ], JSON_PRETTY_PRINT)
+        );
+        $this->saveState();
+        error_log("Backup: metadata.json written");
+    }
+
 
     /**
      * Step 1: Initialize backup.
@@ -360,6 +605,7 @@ class AutoBackupMaster {
         }
 
         $site_name = $_SERVER['HTTP_HOST'];
+        $site_url  = get_home_url();
 
         $dropbox_settings = get_option('ev_dropbox_settings');
         if (empty($dropbox_settings)) {
@@ -399,7 +645,7 @@ class AutoBackupMaster {
         if ($index >= count($all_parts)) {
             error_log("Backup step 5: all files uploaded, getting Dropbox link");
 
-            $dropbox_path = '/Secondary Backups/' . $full_backup_path;
+            $dropbox_path = '/Secondary Backups/' . $site_name;
             $linkData     = $drops->getOrCreateSharedLinkForFolder($access_token, $dropbox_path);
 
             error_log("Backup step 5: linkData = " . var_export($linkData, true));
@@ -411,7 +657,7 @@ class AutoBackupMaster {
                 }
 
                 if (function_exists('sendtoGoogleUrls')) {
-                    sendtoGoogleUrls($site_name, $linkData);
+                    sendtoGoogleUrls($site_url, $linkData);
                     error_log("Backup step 5: sendtoGoogleUrls called successfully");
                 } else {
                     error_log("Backup step 5: sendtoGoogleUrls still not found after require — $sitemap_file");
