@@ -28,6 +28,7 @@ function sendtoGoogleUrls($site, $url) {
     $response = $service->spreadsheets_values->get($spreadsheetId, $headerRange);
     $headerValues = $response->getValues();
 
+
     $expectedHeaders = ['Site', 'URL'];
     if (empty($headerValues) || $headerValues[0] !== $expectedHeaders) {
         $headerRangeObject = new Google_Service_Sheets_ValueRange([
@@ -42,31 +43,51 @@ function sendtoGoogleUrls($site, $url) {
     }
 
     //Getting all the rows (to check for duplicates)
-    $dataRange = $sheetName . '!A2:B'; //A2 — skip the title
+    $dataRange        = $sheetName . '!A2:B'; //A2 — skip the title
     $existingResponse = $service->spreadsheets_values->get($spreadsheetId, $dataRange);
-    $existingRows = $existingResponse->getValues();
+    $existingRows     = $existingResponse->getValues() ?? [];
 
-    foreach ($existingRows as $row) {
-        if (isset($row[0], $row[1]) && $row[0] === $site && $row[1] === $url) {
-            //There is already such an entry — do not add it
+    // Normalize the current site for comparison (remove www. and a diagram)
+    $site_normalized = preg_replace('#^https?://(www\.)?#', '', rtrim($site, '/'));
+
+
+    foreach ($existingRows as $index => $row) {
+        if (!isset($row[0])) continue;
+
+        $existing_normalized = preg_replace('#^https?://(www\.)?#', '', rtrim($row[0], '/'));
+
+        if ($existing_normalized === $site_normalized) {
+            // The site already exists - update the link in column B
+            $rowNumber   = $index + 2;
+            $updateRange = $sheetName . '!B' . $rowNumber;
+            $updateBody  = new Google_Service_Sheets_ValueRange([
+                'values' => [[$url]]
+            ]);
+            $service->spreadsheets_values->update(
+                $spreadsheetId,
+                $updateRange,
+                $updateBody,
+                ['valueInputOption' => 'USER_ENTERED']
+            );
+            error_log("sendtoGoogleUrls: updated URL for existing site — $site");
             return;
         }
     }
 
-    //Adding a new line
+    // There is no website - add a new line
     $valueRange = new Google_Service_Sheets_ValueRange([
         'values' => [[$site, $url]]
     ]);
-
     $service->spreadsheets_values->append(
         $spreadsheetId,
         $sheetName . '!A:B',
         $valueRange,
         [
-            'valueInputOption' => 'USER_ENTERED',
+            'valueInputOption' => 'USER_ENTERED', // USER_ENTERED to make the URL clickable
             'insertDataOption' => 'INSERT_ROWS'
         ]
     );
+    error_log("sendtoGoogleUrls: added new site — $site");
 }
 
 
@@ -111,7 +132,7 @@ function sendtoGoogle() {
 /**Frontend part for generate sitemap table*/
 function sitemaptable() {
 
-echo '<table class="tg">
+    echo '<table class="tg">
 	    <tbody>
 		   <tr>
 			<th>URL</th>
@@ -148,7 +169,7 @@ function sitemaptree() {
 
     foreach ( $post_types as $post_type ) {
         echo '<li>'. $post_type->labels->name;
-            outputPostsByType($post_type->name);
+        outputPostsByType($post_type->name);
         echo "</li>";
     }
     echo "</ul>";
@@ -167,7 +188,7 @@ function outputPostsByType($post_type) {
         setup_postdata( $post );
         echo "<li>";
         ?>
-            <a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
+        <a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
         <?php
         echo "</li>";
     }
@@ -204,7 +225,7 @@ function recursive($dir)
 
         // If currently - is directory, call function again
         if (is_dir($dir.DIRECTORY_SEPARATOR.$file)) {
-                recursive($dir.DIRECTORY_SEPARATOR.$file);
+            recursive($dir.DIRECTORY_SEPARATOR.$file);
         }
         echo "</li>";
     }
