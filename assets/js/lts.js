@@ -30,11 +30,12 @@ jQuery(document).ready(function($) {
 
                             //update saving message
                             showMessage('');
-console.dir(response.data);
+// console.dir(response.data);
 
                             var notifications = response.data.notifications;
-                            var fields = response.data.fields;
-                            var selected_fields = response.data.selected_fields;
+                            // var fields = response.data.fields;
+                            // var selected_fields = response.data.selected_fields;
+                            var client_emails = response.data.client_emails;
 
                             // Create a dropdown for each form's notifications
                             if( notifications ) {
@@ -54,32 +55,27 @@ console.dir(response.data);
 
 
                                 // Add dropdowns for each lead field
-                                var fieldSelect = function(fieldName, fieldLabel, formId) {
-                                    var html = '<div class="field-wrap">';
-                                    html += '<label for="lead_' + fieldName + '_' + formId + '">' + fieldLabel + ':</label>';
-                                    html += '<select name="lts_form_fields[' + formId + '][' + fieldName + ']" id="lead_' + fieldName + '_' + formId + '">';
-                                    html += '<option value="" selected>Not Set</option>'
-                                    fields.forEach(function(field) {
-                                        html += '<option value="' + field.id + '"';
-                                        if( selected_fields[ formId ] && selected_fields[ formId ][ fieldName ] == field.id ) {
-                                            html += ' selected ';
-                                        }
-                                        html += '>' + field.label + '</option>';
-                                    });
-                                    html += '</select></div><br>';
-                                    return html;
-                                };
+                                // var fieldSelect = function(fieldName, fieldLabel, formId) {
+                                //     var html = '<div class="field-wrap">';
+                                //     html += '<label for="lead_' + fieldName + '_' + formId + '">' + fieldLabel + ':</label>';
+                                //     html += '<select name="lts_form_fields[' + formId + '][' + fieldName + ']" id="lead_' + fieldName + '_' + formId + '">';
+                                //     html += '<option value="" selected>Not Set</option>'
+                                //     fields.forEach(function(field) {
+                                //         html += '<option value="' + field.id + '"';
+                                //         if( selected_fields[ formId ] && selected_fields[ formId ][ fieldName ] == field.id ) {
+                                //             html += ' selected ';
+                                //         }
+                                //         html += '>' + field.label + '</option>';
+                                //     });
+                                //     html += '</select></div><br>';
+                                //     return html;
+                                // };
 
-                                // Generate dropdowns for lead fields
-                                notificationSelect += '<div class="lead-fields">';
-                                notificationSelect += fieldSelect('FullName','Full Name', formId);
-                                notificationSelect += fieldSelect('FirstName', 'First Name', formId);
-                                notificationSelect += fieldSelect('LastName', 'Last Name', formId);
-                                notificationSelect += fieldSelect('Email', 'Email', formId);
-                                notificationSelect += fieldSelect('Phone', 'Phone', formId);
-                                notificationSelect += fieldSelect('Company', 'Company', formId);
-                                notificationSelect += fieldSelect('OriginalMessage', 'Message', formId);
-                                notificationSelect += '</div>';
+                                // Generate Client Notification Email fields
+                                let client_email = client_emails[ formId ] || '';
+                                notificationSelect += '<label for="client_emails">Client Emails: <i>(comma separated)</i></label>';
+                                notificationSelect += '<input class="style-field" type="text" name="lts_client_emails[' + formId + ']" value="' + client_email + '">';
+
 
                                 // Create the div and add it to the array
                                 var div = $('<div>', {

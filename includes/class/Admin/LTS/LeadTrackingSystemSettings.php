@@ -29,6 +29,10 @@ class LeadTrackingSystemSettings
         // handle ajax call
         add_action( 'wp_ajax_lts_get_form_notifications', [$this, 'lts_get_form_notifications'] );
 
+        // gravity form entry sidebar
+        add_action( 'gform_entry_detail_content_before', [$this, 'lts_entry_details'], 10, 2 );
+
+
         // enqueue scripts
         add_action('admin_enqueue_scripts', [$this, 'lts_enqueue_admin_scripts'] );
     }
@@ -74,6 +78,7 @@ class LeadTrackingSystemSettings
                     $supported_forms = get_option('lts_supported_forms', []);
                     $selected_form_notifications = get_option('lts_form_notifications', []);
                     $selected_form_fields = get_option('lts_form_fields', []);
+                    $client_emails = get_option('lts_client_emails', []);
 
     //                echo "<h2>saved forms</h2>";
     //                print_r( $supported_forms );
@@ -109,7 +114,7 @@ class LeadTrackingSystemSettings
                                 </td>
                             </tr>
                             <tr valign="top">
-                                <th scope="row">Configure Integration</th>
+                                <th scope="row">Notification Recipients</th>
                                 <td id="lts-notifications-wrapper">
                                     <?php
 
@@ -128,22 +133,16 @@ class LeadTrackingSystemSettings
                                             </select>
                                             <?php
                                             ?>
-                                            <!-- Dynamically generate notification dropdowns based on selected forms -->
-                                            <div class="lead-fields">
-                                                <?php
-                                                $this->build_form_fields_dropdown( $formId, "FullName", "Full Name", $form_fields[ $formId ], $selected_form_fields[ $formId ]['FullName'] );
-                                                $this->build_form_fields_dropdown( $formId, "FirstName", "First Name", $form_fields[ $formId ], $selected_form_fields[ $formId ]['FirstName'] );
-                                                $this->build_form_fields_dropdown( $formId, "LastName", "Last Name", $form_fields[ $formId ], $selected_form_fields[ $formId ]['LastName'] );
-                                                $this->build_form_fields_dropdown( $formId, "Email", "Email", $form_fields[ $formId ], $selected_form_fields[ $formId ]['Email'] );
-                                                $this->build_form_fields_dropdown( $formId, "Phone", "Phone", $form_fields[ $formId ], $selected_form_fields[ $formId ]['Phone'] );
-                                                $this->build_form_fields_dropdown( $formId, "Company", "Company", $form_fields[ $formId ], $selected_form_fields[ $formId ]['Company'] );
-                                                $this->build_form_fields_dropdown( $formId, "OriginalMessage", "Message", $form_fields[ $formId ], $selected_form_fields[ $formId ]['OriginalMessage'] );
-                                                ?>
-                                            </div>
+                                            <label for="client_emails">Recipient Emails (comma separated):</label>
+                                            <input class="style-field" type="text" name="lts_client_emails[<?php echo $formId; ?>]" value="<?php echo $client_emails[ $formId ]; ?>">
                                         </div>
                                     <?php endforeach; ?>
+
+                    </div>
                                 </td>
                             </tr>
+
+
                         </table>
                     <?php submit_button(); ?>
 
@@ -159,7 +158,20 @@ class LeadTrackingSystemSettings
 
         <?php
     }
-
+    private function build_form_fields_dropdown( $form_id, $field_name, $field_label, $form_fields, $selected_id ) {
+        ?>
+        <div class="field-wrap">
+            <label for="lead_<?php echo $field_name; ?>_<?php echo $form_id; ?>"><?php echo $field_label; ?>:</label>
+            <select name="lts_form_fields[<?php echo $form_id; ?>][<?php echo $field_name; ?>]" id="lead_<?php echo $field_name; ?>_<?php echo $form_id; ?>">
+                <option value="" selected>Not Set</option>
+                <?php foreach( $form_fields as $id => $field ) : ?>
+                    <option value="<?php echo $field['id']; ?>" <?php echo ( $field['id'] == $selected_id ) ? "selected" : ""; ?>><?php echo $field['label']; ?></option>';
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <br>
+        <?php
+    }
 
     /**
      * LTS AJAX support
@@ -176,9 +188,9 @@ class LeadTrackingSystemSettings
 
         // get selected form notifications to determine selectedness
         $selected_form_notifications = get_option('lts_form_notifications', []);
-        $selected_form_fields = get_option('lts_form_fields', []);
-        error_log(print_r('selected notifs ', true));
-        error_log(print_r($selected_form_notifications, true));
+        $client_emails = get_option('lts_client_emails', []);
+        error_log(print_r('ajax client emails ', true));
+        error_log(print_r($client_emails, true));
 
 
         // get form ID
@@ -205,20 +217,21 @@ class LeadTrackingSystemSettings
                 }
 
                 // Prepare fields for the response
-                $response_fields = array();
-                foreach ($form['fields'] as $field) {
-                    if (!empty($field->label)) {
-                        $response_fields[] = array(
-                                'id'    => $field->id,
-                                'label' => $field->label,
-                        );
-                    }
-                }
+//                $response_fields = array();
+//                foreach ($form['fields'] as $field) {
+//                    if (!empty($field->label)) {
+//                        $response_fields[] = array(
+//                                'id'    => $field->id,
+//                                'label' => $field->label,
+//                        );
+//                    }
+//                }
                 // Send a JSON response back to the AJAX call
                 wp_send_json_success( array (
                                 'notifications' => $response_notifications,
-                                'fields'        => $response_fields,
-                                'selected_fields' => $selected_form_fields,
+//                                'fields'        => $response_fields,
+//                                'selected_fields' => $selected_form_fields,
+                                'client_emails' => $client_emails,
                                 'form_id' => $form_id,
                                 'form_name' => $form['title'] )
                 );
@@ -247,6 +260,9 @@ class LeadTrackingSystemSettings
         ));
         register_setting('lts_settings_group', 'lts_form_fields', array(
                 'sanitize_callback' => [$this, 'lts_sanitize_form_fields']
+        ));
+        register_setting('lts_settings_group', 'lts_client_emails', array(
+                'sanitize_callback' => [$this, 'lts_sanitize_client_emails']
         ));
     }
 
@@ -290,7 +306,7 @@ class LeadTrackingSystemSettings
     }
     public function lts_sanitize_form_fields($input) {
         error_log(print_r("sanitizing form fields", true));
-        error_log(print_r($input, true));
+//        error_log(print_r($input, true));
         // Ensure the input is an array
         if (!is_array($input)) {
             return array();
@@ -320,7 +336,67 @@ class LeadTrackingSystemSettings
 
         return $sanitized_fields;
     }
+    public function lts_sanitize_client_emails($input) {
+        error_log(print_r("sanitizing client emails", true));
+//        error_log(print_r($input, true));
 
+        // Ensure the input is an array
+        if (!is_array($input)) {
+            return array();
+        }
+
+        $sanitized_client_emails = array();
+
+        // Sanitize each form's notification ID
+        foreach ($input as $form_id => $emails ) {
+            // comma seperated list of emails for this form
+            $emails = explode(',', $emails);
+
+            // get list of valid emails
+            $clean = [];
+            foreach ($emails as $email) {
+                // sanitize bad characters
+                $email = sanitize_email(trim($email));
+
+                // validate email address
+                if (is_email($email)) {
+                    $clean[] = $email;
+                }
+            }
+
+            // Remove duplicates
+            $clean = array_unique($clean);
+
+            // store value as comma separated list
+            $valid_emails = implode(',', $clean);
+            $sanitized_client_emails[$form_id] = $valid_emails;
+
+        }
+        error_log(print_r($sanitized_client_emails, true));
+
+        return $sanitized_client_emails;
+    }
+
+    /**
+     * Gravity Forms Meta sidebar
+     */
+    public function lts_entry_details( $form, $entry ) {
+
+        $status      = gform_get_meta( $entry['id'], 'lts_status' );
+        $reviewed_by = gform_get_meta( $entry['id'], 'lts_reviewed_by' );
+        $reviewed_at = gform_get_meta( $entry['id'], 'lts_reviewed_at' );
+
+        ?>
+        <div class="postbox">
+            <h3>LTS Review</h3>
+            <div class="inside">
+                <p><strong>Status:</strong> <?php echo esc_html( $status ?: 'Not Active' ); ?></p>
+                <p><strong>Reviewed By:</strong> <?php echo esc_html( $reviewed_by ); ?></p>
+                <p><strong>Reviewed At:</strong> <?php echo esc_html( wp_date('M j, Y g:i A', $reviewed_at ) ); ?></p>
+            </div>
+        </div>
+        <?php
+    }
 
     /**
      * LTS Assets

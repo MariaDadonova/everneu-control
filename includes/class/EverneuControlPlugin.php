@@ -58,7 +58,6 @@ class EverneuControlPlugin
                 'master',
                 ''
             );
-            delete_site_transient('update_plugins');
         });
         /* End of this part */
 
@@ -68,11 +67,15 @@ class EverneuControlPlugin
         require_once EVN_DIR . 'includes/class/Admin/Settings/Settings.php';
         require_once EVN_DIR . 'includes/class/Admin/Backups/Backups.php';
         require_once EVN_DIR . 'includes/class/Admin/LTS/LeadTrackingSystemSettings.php';
+        require_once EVN_DIR . 'includes/class/Admin/LTS/LeadSubmissionEvent.php';
+        require_once EVN_DIR . 'includes/class/Admin/LTS/ValidateLead.php';
 
 
         new Admin\Settings\Settings;
         new Admin\Backups\Backups;
         new Admin\LTS\LeadTrackingSystemSettings;
+        new Admin\LTS\LeadSubmissionEvent;
+        new Admin\LTS\ValidateLead;
 
 
     }

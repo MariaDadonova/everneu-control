@@ -72,6 +72,7 @@ select[name="lts_supported_forms[]"] option:checked {
 #lts-notifications-wrapper {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 20px;
 }
 .form-notification-wrap {
@@ -80,12 +81,13 @@ select[name="lts_supported_forms[]"] option:checked {
     max-width: 400px;
     width: 100%;
 }
+.form-notification-wrap label { margin-top: 10px; }
 
 
 /** fields */
 /* General styling for the lead-fields container */
 .lead-fields {
-    margin-top: 20px;
+    margin: 20px 0;
     padding: 15px;
     background-color: #f9f9f9;
     border: 1px solid #ddd;
