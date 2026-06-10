@@ -385,14 +385,24 @@ class LeadTrackingSystemSettings
         $status      = gform_get_meta( $entry['id'], 'lts_status' );
         $reviewed_by = gform_get_meta( $entry['id'], 'lts_reviewed_by' );
         $reviewed_at = gform_get_meta( $entry['id'], 'lts_reviewed_at' );
+        $client_rating = gform_get_meta( $entry['id'], 'lts_client_rating' );
+        $client_rated_at = gform_get_meta( $entry['id'], 'lts_client_rated_at' );
 
         ?>
         <div class="postbox">
             <h3>LTS Review</h3>
             <div class="inside">
-                <p><strong>Status:</strong> <?php echo esc_html( $status ?: 'Not Active' ); ?></p>
-                <p><strong>Reviewed By:</strong> <?php echo esc_html( $reviewed_by ); ?></p>
-                <p><strong>Reviewed At:</strong> <?php echo esc_html( wp_date('M j, Y g:i A', $reviewed_at ) ); ?></p>
+                <div class="lts-detail-wrap">
+                    <div>
+                        <p><strong>Status:</strong> <?php echo esc_html( $status ?: 'Not Active' ); ?></p>
+                        <p><strong>Reviewed By:</strong> <?php echo esc_html( $reviewed_by ); ?></p>
+                        <p><strong>Reviewed At:</strong> <?php echo esc_html( wp_date('M j, Y g:i A', $reviewed_at ) ); ?></p>
+                    </div>
+                    <div>
+                        <p><strong>Client Rating:</strong> <?php echo esc_html( $client_rating?: 'Not Rated' ); ?></p>
+                        <p><strong>Rated At:</strong> <?php echo esc_html( wp_date('M j, Y g:i A', $client_rated_at ) ); ?></p>
+                    </div>
+                </div>
             </div>
         </div>
         <?php
