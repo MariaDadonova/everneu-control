@@ -2,17 +2,10 @@
 
 namespace EVN\Admin\LTS;
 
-//use EVN\Helpers\CronInterval;
-//use EVN\Helpers\Encryption;
-//use EVN\Helpers\Environment;
-//use DropboxAPI;
-//use MySql;
-//use ZipArchive;
-use function OpenTelemetry\Instrumentation\hook;
 
 /**
  * Lead Tracking System settings subpage
- *
+ * Manages which Gravity Forms and Notifications are processed by LTS.
  */
 
 class LeadTrackingSystemSettings
@@ -79,14 +72,6 @@ class LeadTrackingSystemSettings
                     $selected_form_notifications = get_option('lts_form_notifications', []);
                     $selected_form_fields = get_option('lts_form_fields', []);
                     $client_emails = get_option('lts_client_emails', []);
-
-    //                echo "<h2>saved forms</h2>";
-    //                print_r( $supported_forms );
-    //                echo "<h2>saved notifications</h2>";
-    //                print_r( $selected_form_notifications );
-    //                echo "<h2>save fields</h2>";
-    //                print_r( $selected_form_fields );
-
                     ?>
                     <form method="post" action="options.php" class="f1">
                         <?php settings_fields('lts_settings_group');
@@ -117,9 +102,6 @@ class LeadTrackingSystemSettings
                                 <th scope="row">Notification Recipients</th>
                                 <td id="lts-notifications-wrapper">
                                     <?php
-
-                                    //                                            print_r( $form_fields );
-
                                     foreach( $selected_form_notifications as $formId => $selected_notification ) : ?>
                                         <div class="form-notification-wrap">
                                             <strong><?php echo $form_names[ $formId ]; ?></strong>
@@ -216,16 +198,7 @@ class LeadTrackingSystemSettings
                     );
                 }
 
-                // Prepare fields for the response
-//                $response_fields = array();
-//                foreach ($form['fields'] as $field) {
-//                    if (!empty($field->label)) {
-//                        $response_fields[] = array(
-//                                'id'    => $field->id,
-//                                'label' => $field->label,
-//                        );
-//                    }
-//                }
+
                 // Send a JSON response back to the AJAX call
                 wp_send_json_success( array (
                                 'notifications' => $response_notifications,

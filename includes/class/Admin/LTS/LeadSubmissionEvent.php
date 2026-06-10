@@ -4,6 +4,10 @@ namespace EVN\Admin\LTS;
 
 use GFFormDisplay;
 
+/**
+ * Lead Submission Event
+ * Checks for Spam, sends custom email notifications
+ */
 class LeadSubmissionEvent {
 
     private $admin_notice_msg = '';

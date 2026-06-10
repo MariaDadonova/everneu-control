@@ -1,6 +1,10 @@
 <?php
 namespace EVN\Admin\LTS;
 
+/**
+ * Validate Lead
+ * Handles validating and rejecting leads, and Client Ratings.
+ */
 class ValidateLead {
 
 

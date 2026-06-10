@@ -2,6 +2,10 @@
 
 namespace EVN\Admin\LTS;
 
+/**
+ * Notify Akismet
+ * Reports missed spam or mistaken ham to Akismet.
+ */
 class NotifyAkismet {
 
 

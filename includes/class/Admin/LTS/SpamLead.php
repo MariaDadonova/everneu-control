@@ -1,6 +1,10 @@
 <?php
 namespace EVN\Admin\LTS;
 
+/**
+ * Spam Lead
+ * Handles setting leads as spam.
+ */
 class SpamLead {
 
 
