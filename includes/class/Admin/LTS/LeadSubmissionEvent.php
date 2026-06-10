@@ -10,29 +10,13 @@ class LeadSubmissionEvent {
 
     public function __construct() {
 
-        // get selected forms
-//        $supported_forms = get_option('lts_supported_forms', []);
-
-//        error_log(print_r("LeadSubmissionEvent construct", true));
-//        error_log(print_r($supported_forms, true));
-        
-        // hook into form submission
-//        foreach( $supported_forms as $form_id ) {
-//
-//            add_action( 'gform_after_submission_' . $form_id, [$this, 'after_lead_submission'], 10, 2 );
-//
-//        }
+        // detect akismet only spam
+        add_filter('gform_entry_post_save', [$this, 'lts_handle_akismet_spam'], 10, 2 );
 
         // filter notification email to include Approve/Reject buttons
-
-
-        add_filter('gform_entry_post_save', [$this, 'lts_handle_akismet_spam'], 10, 2 );
         add_filter('gform_pre_send_email', [$this, 'lts_prepend_html_buttons_to_notification'], 10, 4 );
 
-
     }
-
-
 
 
     public function lts_handle_akismet_spam( $entry, $form ) {
@@ -70,24 +54,25 @@ class LeadSubmissionEvent {
         // if not honeypot, then Akismet marked as spam
         // Akismet has marked legit leads as spam, we don't trust it
         // set as not spam, record note, send for manual review
-        \GFAPI::update_entry_property( rgar( $entry, 'id' ), 'status', 'active' );
+        $entry_id        = rgar( $entry, 'id' );
+        \GFAPI::update_entry_property( $entry_id, 'status', 'active' );
         $entry['status'] = 'active';
         \GFFormsModel::add_note(
                 rgar( $entry, 'id' ),
                 0,                          // user ID — 0 for system/programmatic
                 'System',                   // user name label
-                'Entry was moved out of spam by the Lead Tracking System due to Akismet only flagging.',
+                'Entry was moved out of spam by the Lead Tracking System. Akismet marked spam goes to further review.',
                 'spam'                      // note type
         );
+        gform_update_meta( $entry_id, 'lts_initial_spam', 'true' );
 
         // manually send notification
-        $entry_id        = rgar( $entry, 'id' );
         $form_title      = rgar( $form, 'title' );
         $entry_url       = admin_url( "admin.php?page=gf_entries&view=entry&id={$form['id']}&lid={$entry_id}" );
         $fields_html     = $this->get_entry_fields_html( $form, $entry );
 
         // use To, CC and BCC from form notifications, filtering for only @everneu.com addresses
-        $form         = \GFAPI::get_form( $form_id );
+//        $form         = \GFAPI::get_form( $form_id );
         $notification = $form['notifications'][ $notification_id ];
         $to  = $this->filter_to_everneu_emails( \GFCommon::replace_variables( rgar( $notification, 'to' ),  $form, $entry ) );
         $cc  = $this->filter_to_everneu_emails( \GFCommon::replace_variables( rgar( $notification, 'cc' ),  $form, $entry ) );
@@ -101,34 +86,38 @@ class LeadSubmissionEvent {
         );
 
         // prepare actions
+        $token    = wp_generate_password( 32, false, false );
+        gform_update_meta( $entry_id, 'lts_status', 'Pending' );
+        gform_update_meta( $entry_id, 'lts_token', $token );
+
         $approve_url = add_query_arg([
                 'action'   => 'validate_lead',
                 'valid'    => '1',
-                'entry_id' => $entry_id,
-                'nonce'    => wp_create_nonce( 'gf_validate_lead_' . $entry_id ),
+                'id' => $entry_id,
+                'nonce'    => $token,
         ], admin_url( 'admin-post.php' ) );
 
         $reject_url = add_query_arg([
-                'action'   => 'reject_lead',
+                'action'   => 'validate_lead',
                 'valid'    => '0',
-                'entry_id' => $entry_id,
-                'nonce'    => wp_create_nonce( 'gf_reject_lead_' . $entry_id ),
+                'id' => $entry_id,
+                'nonce'    => $token,
         ], admin_url( 'admin-post.php' ) );
 
         $confirm_spam_url = add_query_arg([
                 'action'   => 'spam_lead',
-                'entry_id' => $entry_id,
-                'nonce'    => wp_create_nonce( 'gf_spam_review_' . $entry_id ),
+                'id' => $entry_id,
+                'nonce'    => $token,
         ], admin_url( 'admin-post.php' ) );
 
-        $subject = "New submission from {$form_title} - Possible Spam";
+        $subject = "[Possible Spam] New submission from {$form_title}";
 
         $message = "";
         $message .= '<div style="text-align: center; margin:5px auto 40px; max-width: 800px;">';
         $message .= '    <h2>Lead Tracking</h2>';
         $message .= '    <p style="margin: 10px; text-align: center; font-style: italic">POSSIBLE SPAM</p>';
         $message .= '    <p style="margin-bottom: 10px">Akismet marked this lead as spam. We don\'t fully trust Akismet, please review and confirm.</p>';
-        $message .= '    <p style="display: inline-block;margin:15px 0 25px;"><a style="display: inline-block;color: #fff;background-color: #DD6B20;border-color: #DD6B20;font-weight: 400;text-align: center;vertical-align: middle;border: 1px solid transparent;text-decoration: none;font-family: Arial, sans-serif;padding:15px 30px;border-radius: 5px"';
+        $message .= '    <p style="display: inline-block;margin:10px 0 15px;"><a style="display: inline-block;color: #fff;background-color: #DD6B20;border-color: #DD6B20;font-weight: 400;text-align: center;vertical-align: middle;border: 1px solid transparent;text-decoration: none;font-family: Arial, sans-serif;padding:15px 30px;border-radius: 5px"';
         $message .= '       href="' . $confirm_spam_url . '">CONFIRM SPAM</a></p>';
         $message .= '    <p>If the Lead is legitimate, please Validate or Reject.</p>';
         $message .= '    <p><a style="display: inline-block;color: #fff;background-color: #28a745;border-color: #28a745;font-weight: 400;text-align: center;vertical-align: middle;border: 1px solid transparent;text-decoration: none;font-family: Arial, sans-serif;padding:10px 20px;border-radius: 5px"';
@@ -152,17 +141,12 @@ class LeadSubmissionEvent {
 
     public function lts_prepend_html_buttons_to_notification($email, $message_format, $notification, $entry) {
 
-        error_log(print_r('pre send email here', true));
         try {
-            error_log(print_r('the notification, entry in prepend is ', true));
-            error_log(print_r($notification, true));
-//            error_log(print_r($entry, true));
 
             //get option
             $supported_forms = get_option('lts_supported_forms', []);
             $selected_form_notifications = get_option('lts_form_notifications', []);
-//            $selected_form_fields = get_option('lts_form_fields', []);
-            $client_emails = get_option('lts_client_emails', []);
+//            $client_emails = get_option('lts_client_emails', []);
 
 
             // confirm current form and notification are LTS active
@@ -171,90 +155,35 @@ class LeadSubmissionEvent {
             if( ! in_array( $form_id, $supported_forms ) ) {
                 return $email;
             }
-//            error_log(print_r('form id ' . $form_id . ' is LTS active, entry id: ' . rgar( $entry, 'id' ) . ', client emails, notifications: ' . $selected_form_notifications, true));
-//            error_log(print_r( $client_emails , true));
-//            error_log(print_r( $selected_form_notifications, true));
-//            error_log(print_r('selected notification id '. $notification['id'], true));
             if( $selected_form_notifications[ $form_id ] !== $notification['id'] ) {
-                error_log(print_r('this notification is not active, skipping', true));
+//                error_log(print_r('this notification is not active, skipping', true));
                 return $email;
             }
 
-            error_log(print_r('sending notification', true));
+//            error_log(print_r('sending notification', true));
 
-//            $status = rgar( $entry, 'status' );
-//            error_log(print_r('presend email on form id ' . $form_id . ' : ' . rgar( $entry, 'id' ) . ' : ' . $status, true));
-//            $entry = \GFAPI::get_entry( rgar( $entry, 'id' ) );
-//            $status = rgar( $entry, 'status' );
-//            error_log(print_r('did status change? ' . $status, true));
-
-
-
-//            $spam_source = get_transient( 'gf_spam_source_' . $entry->id );
-//            $akismet_spam = ( $spam_source === 'akismet' );
-
-//            // Check if spam; if spam, what marked it as such
-//            $is_spam = false;
-//            $akismet_only = false;
-//            if ( rgar( $entry, 'status' ) === 'spam' ) {
-//
-//                $entry_id = rgar($entry, 'id');
-//                $notes = \GFFormsModel::get_lead_notes($entry_id);
-//                error_log(print_r('notes for entry ' . $entry_id, true));
-//
-//                $akismet_flagged = false;
-//                $honeypot_flagged = false;
-//
-//                foreach ($notes as $note) {
-//                    $note_text = strtolower($note->value);
-//                    error_log(print_r($note_text, true));
-//                    if (strpos($note_text, 'akismet') !== false) {
-//                        $akismet_flagged = true;
-//                    }
-//                    if (strpos($note_text, 'honeypot') !== false || strpos($note_text, 'anti-spam') !== false) {
-//                        $honeypot_flagged = true;
-//                    }
-//                }
-//
-//                // Akismet only — allow the email through (your "possible false positive" notification)
-//                if ($akismet_flagged && $honeypot_flagged) {
-//                    error_log(print_r('SPAM as marked by Akismet and Honeypot', true));
-//                    $is_spam = true;
-//                } elseif ($akismet_flagged) {
-//                    error_log(print_r('SPAM as marked by Akismet only', true));
-//                    $is_spam = true;
-//                    $akismet_only = true;
-//                } elseif ($honeypot_flagged) {
-//                    error_log(print_r('SPAM as marked by Honeypot only', true));
-//                } else {
-//                    error_log(print_r('Not spam.', true));
-//                }
-//
-//            }
-
-            // prepare GF Entry meta
-//            error_log(print_r("Entry:", true));
-//            error_log(print_r($entry, true));
-
-//            $entry_id = $entry->id;
             $token    = wp_generate_password( 32, false, false );
             gform_update_meta( $entry_id, 'lts_status', 'Pending' );
             gform_update_meta( $entry_id, 'lts_token', $token );
-//            gform_update_meta( $entry_id, 'lts_client_notification_sent', 0 );
-
+            $entry_url       = admin_url( "admin.php?page=gf_entries&view=entry&id={$form_id}&lid={$entry_id}" );
 
             // create action buttons
             $approve_url = add_query_arg([
                     'action'   => 'validate_lead',
                     'valid'    => '1',
                     'id'       => $entry_id,
-                    'nonce'    => wp_create_nonce( 'gf_validate_lead_' . $entry_id ),
+                    'nonce'    => $token,
             ], admin_url( 'admin-post.php' ) );
             $reject_url = add_query_arg([
                     'action'   => 'validate_lead',
                     'valid'    => '0',
                     'id'       => $entry_id,
-                    'nonce'    => wp_create_nonce( 'gf_reject_lead_' . $entry_id ),
+                    'nonce'    => $token,
+            ], admin_url( 'admin-post.php' ) );
+            $confirm_spam_url = add_query_arg([
+                    'action'   => 'spam_lead',
+                    'id' => $entry_id,
+                    'nonce'    => $token,
             ], admin_url( 'admin-post.php' ) );
 
             ob_start(); ?>
@@ -265,14 +194,22 @@ class LeadSubmissionEvent {
                    href="<?php echo esc_url( $approve_url ); ?>">Validate</a>
                 <a style="display: inline-block;color: #fff;background-color: #bd2130;border-color: #b21f2d;font-weight: 400;text-align: center;vertical-align: middle;border: 1px solid transparent;text-decoration: none;font-family: Arial, sans-serif;padding:10px 20px;border-radius: 5px"
                    href="<?php echo esc_url( $reject_url ); ?>">Reject</a>
+                <p style="margin: 25px 0 5px">If clearly Spam, please help improve Akismet by reporting spam below.</p>
+                <p style="display: inline-block;margin-top:10px;"><a style="display: inline-block;color: #fff;background-color: #DD6B20;border-color: #DD6B20;font-weight: 400;text-align: center;vertical-align: middle;border: 1px solid transparent;text-decoration: none;font-family: Arial, sans-serif;padding:8px 15px;border-radius: 5px"
+                   href="<?php echo esc_url( $confirm_spam_url ); ?>">Report Spam</a></p>
             </div>
             <?php
             $buttons_html = ob_get_clean();
 
 
+            ob_start(); ?>
+            <p style='margin: 20px;text-align: center;'><a href='<?php echo $entry_url; ?>'>View Lead (Gravity Form Entry) - Login Required</a></p>
+            <?php
+            $view_lead_html = ob_get_clean();
+
             // Modify the email content based on whether it's HTML or plain text
 //            if ($message_format === 'html') {
-                $email['message'] = $buttons_html . $email['message'];
+                $email['message'] = $buttons_html . $email['message'] . $view_lead_html;
 //            } else {
 //                // For plain text emails
 //                // todo
@@ -325,7 +262,6 @@ class LeadSubmissionEvent {
     </td>
 </tr>';
         }
-        $rows .= '</table>';
 
         // build table
         $html  = '<table width="99%" border="0" cellpadding="1" cellspacing="0" bgcolor="#CCCCCC"><tr><td>';

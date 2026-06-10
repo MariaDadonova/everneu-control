@@ -69,6 +69,8 @@ class EverneuControlPlugin
         require_once EVN_DIR . 'includes/class/Admin/LTS/LeadTrackingSystemSettings.php';
         require_once EVN_DIR . 'includes/class/Admin/LTS/LeadSubmissionEvent.php';
         require_once EVN_DIR . 'includes/class/Admin/LTS/ValidateLead.php';
+        require_once EVN_DIR . 'includes/class/Admin/LTS/SpamLead.php';
+        require_once EVN_DIR . 'includes/class/Admin/LTS/NotifyAkismet.php';
 
 
         new Admin\Settings\Settings;
@@ -76,6 +78,8 @@ class EverneuControlPlugin
         new Admin\LTS\LeadTrackingSystemSettings;
         new Admin\LTS\LeadSubmissionEvent;
         new Admin\LTS\ValidateLead;
+        new Admin\LTS\SpamLead;
+        new Admin\LTS\NotifyAkismet;
 
 
     }

@@ -162,3 +162,28 @@ select[name="lts_supported_forms[]"] option:checked {
 .lead-fields .field-group + .field-group {
     margin-top: 10px;
 }
+
+/*Entry Display*/
+.lts-detail-wrap {
+    display: flex;
+}
+.lts-detail-wrap div:first-of-type {
+    flex-basis: 50%;
+}
+
+/**
+ * Lead Validation
+ */
+.confirm-btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #00a32a;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 500;
+    text-decoration: none;
+    margin-right: 8px;
+}
