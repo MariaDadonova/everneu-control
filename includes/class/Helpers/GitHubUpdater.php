@@ -94,7 +94,7 @@ class GitHubUpdater {
             $plugin_data = $this->get_plugin_data_from_text($file_content);
 
             $cached = ['remote_version' => $plugin_data['Version'] ?? ''];
-            set_transient($cache_key, $cached, 12 * HOUR_IN_SECONDS);
+            set_transient($cache_key, $cached, HOUR_IN_SECONDS);
         }
 
         $remote_version = $cached['remote_version'] ?? '';
