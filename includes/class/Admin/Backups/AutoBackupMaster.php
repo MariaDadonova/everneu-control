@@ -29,6 +29,7 @@ class AutoBackupMaster {
 
     /** wp_options key used to persist backup state between cron steps */
     const STATE_OPTION = 'ev_backup_state';
+    const LARGE_FILE_THRESHOLD = 20 * 1024 * 1024;
 
     /** @var string Absolute path to the temporary backup directory */
     private $tmp_backup_dir;
@@ -289,13 +290,14 @@ class AutoBackupMaster {
     private function archiveSiteRootFiles(): void {
         if (in_array('root_files.zip', $this->file_parts, true)) return;
 
-        $root_files = array_filter(glob($this->tmp_backup_dir . '/*') ?: [], function ($f) {
+        $site_root = rtrim(ABSPATH, '/\\');
+
+        $root_files = array_filter(glob($site_root . '/*') ?: [], function ($f) {
             if (!is_file($f)) return false;
             $base = basename($f);
             $ext  = pathinfo($f, PATHINFO_EXTENSION);
-            if (in_array($base, ['db_backup.zip', 'metadata.json'], true)) return false;
-            if (str_starts_with($base, 'pclzip-')) return false;
-            if (in_array($ext, ['zip', 'sql', 'gz', 'tmp'], true)) return false;
+            // skip our own backup artifacts and obvious junk
+            if (in_array($ext, ['sql', 'log'], true)) return false;
             return true;
         });
 
@@ -639,6 +641,12 @@ class AutoBackupMaster {
         $drops        = new DropboxAPI($app_key, $app_secret, $access_code);
         $access_token = $drops->curlRefreshToken($refresh_token);
 
+        // NEW: bail out early if we couldn't get a valid token
+        if (!$access_token) {
+            error_log("Backup stepUploadNextFile: failed to get Dropbox access token");
+            return 'error';
+        }
+
         $full_backup_path = $site_name . '/' . $this->backup_name;
 
         if (($this->upload_index ?? 0) === 0) {
@@ -699,10 +707,22 @@ class AutoBackupMaster {
             return 'continue';
         }
 
+        // NEW: chunked upload for large files, confirmation check
         try {
-            $drops->SendFile($access_token, $full_backup_path . '/' . $part, $fp, $size);
-            error_log("Backup stepUploadNextFile: uploaded $part");
-        } catch (\Exception $e) {
+            if ($size > self::LARGE_FILE_THRESHOLD) {
+                error_log("Backup stepUploadNextFile: large file ({$size} bytes), using chunked upload - $part");
+                $response = $drops->SendLargeFile($access_token, $full_backup_path . '/' . $part, $fp, $size);
+            } else {
+                $response = $drops->SendFile($access_token, $full_backup_path . '/' . $part, $fp, $size);
+            }
+
+            $decoded = json_decode($response, true);
+            if (empty($decoded['id']) && empty($decoded['name'])) {
+                error_log("Backup stepUploadNextFile: upload not confirmed for $part - response: " . $response);
+            } else {
+                error_log("Backup stepUploadNextFile: uploaded $part");
+            }
+        } catch (\Throwable $e) {
             error_log("Backup stepUploadNextFile: error on $part - " . $e->getMessage());
         } finally {
             if (is_resource($fp)) fclose($fp);
