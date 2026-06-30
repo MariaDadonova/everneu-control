@@ -20,7 +20,7 @@ class GitHubUpdater {
 
         add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_update']);
 
-        error_log(print_r('this->plugin_file: ' . $this->plugin_file, true));
+        //error_log(print_r('this->plugin_file: ' . $this->plugin_file, true));
 
         $current_plugin_data = get_plugin_data($this->plugin_file);
         //error_log("GitHubUpdater current_plugin_data: " . print_r($current_plugin_data, true));
@@ -69,39 +69,43 @@ class GitHubUpdater {
             return $transient;
         }
 
-        $response = wp_remote_get($this->get_api_file_url(), [
-            'headers' => $this->get_auth_headers(),
-            'timeout' => 20,
-        ]);
+        $cache_key = 'evn_github_update_check';
+        $cached = get_transient($cache_key);
 
-        if (is_wp_error($response)) {
-            //error_log('GitHubUpdater: wp_remote_get error');
-            return $transient;
+        if ($cached === false) {
+            $response = wp_remote_get($this->get_api_file_url(), [
+                'headers' => $this->get_auth_headers(),
+                'timeout' => 8,
+            ]);
+
+            if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+                error_log('GitHubUpdater: check failed - ' . (is_wp_error($response) ? $response->get_error_message() : wp_remote_retrieve_response_code($response)));
+                set_transient($cache_key, ['remote_version' => ''], 30 * MINUTE_IN_SECONDS);
+                return $transient;
+            }
+
+            $data = json_decode(wp_remote_retrieve_body($response), true);
+            if (empty($data['content'])) {
+                set_transient($cache_key, ['remote_version' => ''], 30 * MINUTE_IN_SECONDS);
+                return $transient;
+            }
+
+            $file_content = base64_decode($data['content']);
+            $plugin_data = $this->get_plugin_data_from_text($file_content);
+
+            $cached = ['remote_version' => $plugin_data['Version'] ?? ''];
+            set_transient($cache_key, $cached, 12 * HOUR_IN_SECONDS);
         }
 
-        $code = wp_remote_retrieve_response_code($response);
-        if ($code !== 200) {
-            //error_log('GitHubUpdater: GitHub API returned code ' . $code);
+        $remote_version = $cached['remote_version'] ?? '';
+        if (empty($remote_version)) {
             return $transient;
         }
-
-        $data = json_decode(wp_remote_retrieve_body($response), true);
-        if (empty($data['content'])) {
-            //error_log('GitHubUpdater: no content in GitHub API response');
-            return $transient;
-        }
-
-        $file_content = base64_decode($data['content']);
-        $plugin_data = $this->get_plugin_data_from_text($file_content);
-        $remote_version = $plugin_data['Version'] ?? '';
 
         $current_plugin_data = get_plugin_data($this->plugin_file);
         $current_version = $current_plugin_data['Version'] ?? '';
 
-        //error_log("GitHubUpdater: remote plugin data: " . print_r($plugin_data, true));
-        //error_log("GitHubUpdater: current version = $current_version, remote version = $remote_version");
-
-        if ($remote_version && version_compare($remote_version, $current_version, '>')) {
+        if (version_compare($remote_version, $current_version, '>')) {
             $transient->response[$this->plugin_slug] = (object)[
                 'slug' => $this->plugin_slug,
                 'plugin' => $this->plugin_slug,

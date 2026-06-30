@@ -216,8 +216,9 @@ class Backups
                         $backup = new AutoBackupMaster();
 
                         if ($backup->initBackup()) {
-                            // Run the following steps via cron with a slight delay
-                            wp_schedule_single_event(time() + 5,  'backup_step_dump_db');
+                            wp_clear_scheduled_hook('backup_step_dump_db');
+                            wp_schedule_single_event(time() + 5, 'backup_step_dump_db');
+                            spawn_cron();
                             echo '<div class="notice notice-success"><p>Backup started! Steps are running in the background.</p></div>';
                             error_log('Manual backup initiated successfully.');
                         } else {
