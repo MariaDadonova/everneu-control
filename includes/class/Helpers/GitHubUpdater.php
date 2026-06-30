@@ -152,10 +152,6 @@ class GitHubUpdater {
     }
 
     public function after_install($response, $hook_extra, $result) {
-        error_log('After install response: ' . print_r($response, true));
-        error_log('After install hook extra: ' . print_r($hook_extra, true));
-        error_log('After install result: ' .print_r($result, true));
-
         if (empty($hook_extra['plugin']) || $hook_extra['plugin'] !== $this->plugin_slug) {
             return $result;
         }
@@ -164,28 +160,38 @@ class GitHubUpdater {
 
         $plugin_dir = WP_PLUGIN_DIR . '/' . dirname($this->plugin_slug);
         $temp_dir = $result['destination'];
-
-        // Folder after unpacking archive
         $unpacked_subfolder = trailingslashit($temp_dir) . $this->github_repo . '-' . $this->branch;
-        error_log(print_r('After install unpacked_subfolder (folder after unpacking archive): ' . $unpacked_subfolder, true));
+        $source = $wp_filesystem->is_dir($unpacked_subfolder) ? $unpacked_subfolder : $temp_dir;
 
-        // Removing old plugin's version
-        $tt = $wp_filesystem->delete($plugin_dir, true);
-        error_log(print_r('After install Removing old plugins version: ' . $tt, true));
+        // Sanity check BEFORE deleting anything: main plugin file must exist in the new source
+        $main_file_in_source = trailingslashit($source) . basename($this->plugin_file);
+        if (!$wp_filesystem->exists($main_file_in_source)) {
+            error_log('GitHubUpdater: aborting update - main plugin file missing in downloaded package: ' . $main_file_in_source);
+            $result['destination'] = $plugin_dir; // keep old version untouched
+            return $result;
+        }
 
-        if ($wp_filesystem->is_dir($unpacked_subfolder)) {
-            $wp_filesystem->move($unpacked_subfolder, $plugin_dir);
-        } else {
-            $wp_filesystem->move($temp_dir, $plugin_dir);
+        $backup_dir = $plugin_dir . '-backup-' . time();
+        if ($wp_filesystem->is_dir($plugin_dir)) {
+            $wp_filesystem->move($plugin_dir, $backup_dir); // rename, not deleting
+        }
+
+        if (!$wp_filesystem->move($source, $plugin_dir)) {
+            error_log('GitHubUpdater: move failed, restoring previous version');
+            if ($wp_filesystem->is_dir($backup_dir)) {
+                $wp_filesystem->move($backup_dir, $plugin_dir);
+            }
+            $result['destination'] = $plugin_dir;
+            return $result;
+        }
+
+        // Move succeeded - clean up backup
+        if ($wp_filesystem->is_dir($backup_dir)) {
+            $wp_filesystem->delete($backup_dir, true);
         }
 
         $result['destination'] = $plugin_dir;
-        
-        error_log(print_r('After install destination: ' . $result['destination'], true));
-
-        // Activating plugin after updating
         activate_plugin($this->plugin_slug);
-
         return $result;
     }
 
