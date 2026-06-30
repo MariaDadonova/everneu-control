@@ -30,6 +30,8 @@ class Backups
 
         // add backups submenu item
         add_action( 'admin_menu', [$this, 'backups_page'], 25 );
+        add_action( 'admin_post_evn_export_backup_logs', [$this, 'export_backup_logs_csv'] );
+        add_action( 'admin_post_evn_get_dropbox_link', [$this, 'get_dropbox_folder_link'] );
 
     }
 
@@ -39,6 +41,80 @@ class Backups
         $page = add_menu_page('Everneu Control Options', 'Everneu Control', 8, 'ec_backups', [$this, 'display_backups_ui'],'dashicons-archive');
         $page = add_submenu_page('ec_backups', 'Backups', "Backups", 8, 'ec_backups', [$this, 'display_backups_ui'] );
 
+    }
+
+    public function export_backup_logs_csv() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized', 403);
+        }
+        check_admin_referer('evn_export_logs');
+
+        global $wpdb;
+        $tablename = $wpdb->prefix . 'ev_backup_logs';
+        $logs = $wpdb->get_results("SELECT name, size, date, path FROM $tablename ORDER BY date DESC");
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="backup-logs-' . date('Y-m-d') . '.csv"');
+
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Name', 'Size', 'Date', 'Dropbox Path']);
+
+        foreach ($logs as $log) {
+            fputcsv($out, [
+                    $log->name,
+                    size_format((int) $log->size, 2),
+                    $log->date,
+                    $log->path,
+            ]);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    public function get_dropbox_folder_link() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized', 403);
+        }
+        check_admin_referer('evn_get_dropbox_link');
+
+        require_once EVN_DIR . 'includes/class/Admin/Backups/DropboxAPIClient/DropboxAPI.php';
+        require_once EVN_DIR . 'includes/class/Helpers/Encryption.php';
+
+        $dropbox_settings = get_option('ev_dropbox_settings');
+        if (is_string($dropbox_settings)) {
+            $dropbox_settings = json_decode($dropbox_settings, true);
+        }
+
+        if (empty($dropbox_settings['refresh_token'])) {
+            wp_redirect(admin_url('admin.php?page=ec_backups&evn_notice=no_dropbox'));
+            exit;
+        }
+
+        $refresh_token = Encryption::decrypt($dropbox_settings['refresh_token']);
+        $app_key       = Encryption::decrypt($dropbox_settings['app_key']);
+        $app_secret    = Encryption::decrypt($dropbox_settings['app_secret']);
+        $access_code   = Encryption::decrypt($dropbox_settings['access_code']);
+
+        $drops        = new DropboxAPI($app_key, $app_secret, $access_code);
+        $access_token = $drops->curlRefreshToken($refresh_token);
+
+        if (!$access_token) {
+            wp_redirect(admin_url('admin.php?page=ec_backups&evn_notice=token_failed'));
+            exit;
+        }
+
+        $site_name = $_SERVER['HTTP_HOST'];
+        $linkData  = $drops->getOrCreateSharedLinkForFolder($access_token, '/Secondary Backups/' . $site_name);
+
+        if ($linkData === false) {
+            wp_redirect(admin_url('admin.php?page=ec_backups&evn_notice=link_failed'));
+            exit;
+        }
+
+        wp_redirect($linkData);
+        exit;
     }
 
     public function display_backups_ui()
@@ -407,105 +483,27 @@ class Backups
                     <h3>Backups history</h3>
                     <p>
                         <?php
-
-                        //Authorization
-                        $dropbox_settings = get_option('ev_dropbox_settings');
-                        if (!empty($dropbox_settings) && is_string($dropbox_settings)) {
-                            $dropbox_settings = json_decode($dropbox_settings, true);
-                        }
-
-                        if (empty($dropbox_settings) || empty($dropbox_settings['refresh_token'])) {
+                        $notice = $_GET['evn_notice'] ?? '';
+                        if ($notice === 'no_dropbox') {
                             echo '<div class="notice notice-warning"><p>First, configure the Dropbox API keys in the "API keys" tab.</p></div>';
-                        } else {
-
-                            $refresh_token = Encryption::decrypt($dropbox_settings['refresh_token']);
-                            $app_key = Encryption::decrypt($dropbox_settings['app_key']);
-                            $app_secret = Encryption::decrypt($dropbox_settings['app_secret']);
-                            $access_code = Encryption::decrypt($dropbox_settings['access_code']);
-
-                            $drops = new DropboxAPI($app_key, $app_secret, $access_code);
-
-                            //Access token
-                            $access_token = $drops->curlRefreshToken($refresh_token);
-
-                            if (!$access_token) {
-                                echo '<div class="notice notice-error"><p>No get access token to Dropbox. Check the API keys or log back in.</p></div>';
-                            } else {
-                                $instal = $_SERVER['HTTP_HOST'];
-
-                                if (!$drops->GetListFolder($access_token, $instal)) {
-                                    $drops->CreateFolder($access_token, $instal);
-                                }
-
-                                $linkData = $drops->getOrCreateSharedLinkForFolder($access_token, '/Secondary Backups/' . $instal);
-
-                                if ($linkData !== false) {
-                                    echo 'Link to folder with backups: <a href="' . $linkData . '" target="_blank">Click here</a>';
-                                } else {
-                                    echo 'Error creating link.';
-                                }
-
-                                // Display zip size in gb, mb, kb depends on size from bytes
-                                function formatSizeUnits($bytes)
-                                {
-                                    if ($bytes >= 1073741824) {
-                                        $bytes = number_format($bytes / 1073741824, 2) . ' GB';
-                                    } elseif ($bytes >= 1048576) {
-                                        $bytes = number_format($bytes / 1048576, 2) . ' MB';
-                                    } elseif ($bytes >= 1024) {
-                                        $bytes = number_format($bytes / 1024, 2) . ' KB';
-                                    } elseif ($bytes > 1) {
-                                        $bytes = $bytes . ' bytes';
-                                    } elseif ($bytes == 1) {
-                                        $bytes = $bytes . ' byte';
-                                    } else {
-                                        $bytes = '0 bytes';
-                                    }
-                                    return $bytes;
-                                }
-
-                                global $wpdb;
-                                $charset_collate = $wpdb->get_charset_collate();
-                                $tablename = $wpdb->prefix . "ev_" . "backup_logs";
-
-                                $logs = $wpdb->get_results(
-                                        "
-                                       SELECT * 
-                                       FROM $tablename
-                                      "
-                                );
-
-                                $rrr = "<table class=\"tg\"><tr>";
-                                $rrr .= "<th>Name</th>";
-                                $rrr .= "<th>Size</th>";
-                                $rrr .= "<th>Date</th>";
-                                $rrr .= "<th>Path</th>";
-                                $rrr .= "</tr>";
-
-                                if ($logs) {
-                                    foreach ($logs as $log) {
-                                        $rrr .= "<tr>";
-                                        $rrr .= "<td>" . $log->name . "</td>";
-                                        $rrr .= "<td>" . formatSizeUnits($log->size) . "</td>";
-                                        $rrr .= "<td>" . $log->date . "</td>";
-                                        $link_to_file = $drops->getOrCreateSharedLinkForFile($access_token, $log->path);
-                                        if ($link_to_file) {
-                                            $rrr .= "<td><a href='" . $link_to_file . "' target='_blank'>Download .zip</a></td>";
-                                        } else {
-                                            $rrr .= "<td>No file in folder</td>";
-                                        }
-
-                                        $rrr .= "</tr>";
-                                    }
-                                } else {
-                                    echo '<p>Logs is empty.</p>';
-                                }
-
-                                $rrr .= "</table>";
-                                echo $rrr;
-                            }
+                        } elseif ($notice === 'token_failed') {
+                            echo '<div class="notice notice-error"><p>Could not get access token to Dropbox. Check the API keys or log back in.</p></div>';
+                        } elseif ($notice === 'link_failed') {
+                            echo '<div class="notice notice-error"><p>Error creating link.</p></div>';
                         }
                         ?>
+
+                    <div style="display: flex; gap: 10px;">
+                        <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=evn_export_backup_logs'), 'evn_export_logs')); ?>"
+                           class="button button-primary">
+                            Download backup logs (CSV)
+                        </a>
+
+                        <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=evn_get_dropbox_link'), 'evn_get_dropbox_link')); ?>"
+                           class="button" target="_blank">
+                            Open Dropbox backups folder
+                        </a>
+                    </div>
                     </p>
                 </section>
             </div>
