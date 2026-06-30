@@ -413,96 +413,98 @@ class Backups
                             $dropbox_settings = json_decode($dropbox_settings, true);
                         }
 
-                        $refresh_token = Encryption::decrypt($dropbox_settings['refresh_token']);
-                        $app_key = Encryption::decrypt($dropbox_settings['app_key']);
-                        $app_secret = Encryption::decrypt($dropbox_settings['app_secret']);
-                        $access_code = Encryption::decrypt($dropbox_settings['access_code']);
-
-                        $drops = new DropboxAPI($app_key, $app_secret, $access_code);
-
-                        //Access token
-                        $access_token = $drops->curlRefreshToken($refresh_token);
-
-                        $instal =  $_SERVER['HTTP_HOST'];
-
-                        if (!$drops->GetListFolder($access_token, $instal)) {
-                            $drops->CreateFolder($access_token, $instal);
-                        }
-
-                        $linkData = $drops->getOrCreateSharedLinkForFolder($access_token, '/Secondary Backups/'.$instal);
-
-                        if ($linkData !== false) {
-                            echo 'Link to folder with backups: <a href="' . $linkData . '" target="_blank">Click here</a>';
+                        if (empty($dropbox_settings) || empty($dropbox_settings['refresh_token'])) {
+                            echo '<div class="notice notice-warning"><p>First, configure the Dropbox API keys in the "API keys" tab.</p></div>';
                         } else {
-                            echo 'Error creating link.';
-                        }
 
+                            $refresh_token = Encryption::decrypt($dropbox_settings['refresh_token']);
+                            $app_key = Encryption::decrypt($dropbox_settings['app_key']);
+                            $app_secret = Encryption::decrypt($dropbox_settings['app_secret']);
+                            $access_code = Encryption::decrypt($dropbox_settings['access_code']);
 
-                        // Display zip size in gb, mb, kb depends on size from bytes
-                        function formatSizeUnits($bytes)
-                        {
-                            if ($bytes >= 1073741824) {
-                                $bytes = number_format($bytes / 1073741824, 2) . ' GB';
-                            } elseif ($bytes >= 1048576) {
-                                $bytes = number_format($bytes / 1048576, 2) . ' MB';
-                            } elseif ($bytes >= 1024) {
-                                $bytes = number_format($bytes / 1024, 2) . ' KB';
-                            } elseif ($bytes > 1) {
-                                $bytes = $bytes . ' bytes';
-                            } elseif ($bytes == 1) {
-                                $bytes = $bytes . ' byte';
+                            $drops = new DropboxAPI($app_key, $app_secret, $access_code);
+
+                            //Access token
+                            $access_token = $drops->curlRefreshToken($refresh_token);
+
+                            if (!$access_token) {
+                                echo '<div class="notice notice-error"><p>No get access token to Dropbox. Check the API keys or log back in.</p></div>';
                             } else {
-                                $bytes = '0 bytes';
-                            }
-                            return $bytes;
-                        }
+                                $instal = $_SERVER['HTTP_HOST'];
 
-
-
-
-                        global $wpdb;
-                        $charset_collate = $wpdb->get_charset_collate();
-                        $tablename = $wpdb->prefix. "ev_" . "backup_logs";
-
-                        $logs = $wpdb->get_results(
-                            "
-	                               SELECT * 
-	                               FROM $tablename
-	                              "
-                        );
-
-                        $rrr="<table class=\"tg\"><tr>";
-                        $rrr.="<th>Name</th>";
-                        $rrr.="<th>Size</th>";
-                        $rrr.="<th>Date</th>";
-                        $rrr.="<th>Path</th>";
-                        $rrr.="</tr>";
-
-                        if ( $logs ) {
-                            foreach ($logs as $log) {
-                                $rrr.="<tr>";
-                                $rrr.="<td>".$log->name."</td>";
-                                $rrr.="<td>".formatSizeUnits($log->size)."</td>";
-                                $rrr.="<td>".$log->date."</td>";
-                                $link_to_file = $drops->getOrCreateSharedLinkForFile($access_token, $log->path);
-                                if ($link_to_file) {
-                                    $rrr.="<td><a href='". $link_to_file ."' target='_blank'>Download .zip</a></td>";
-                                } else {
-                                    $rrr.="<td>No file in folder</td>";
+                                if (!$drops->GetListFolder($access_token, $instal)) {
+                                    $drops->CreateFolder($access_token, $instal);
                                 }
 
-                                $rrr.="</tr>";
+                                $linkData = $drops->getOrCreateSharedLinkForFolder($access_token, '/Secondary Backups/' . $instal);
+
+                                if ($linkData !== false) {
+                                    echo 'Link to folder with backups: <a href="' . $linkData . '" target="_blank">Click here</a>';
+                                } else {
+                                    echo 'Error creating link.';
+                                }
+
+                                // Display zip size in gb, mb, kb depends on size from bytes
+                                function formatSizeUnits($bytes)
+                                {
+                                    if ($bytes >= 1073741824) {
+                                        $bytes = number_format($bytes / 1073741824, 2) . ' GB';
+                                    } elseif ($bytes >= 1048576) {
+                                        $bytes = number_format($bytes / 1048576, 2) . ' MB';
+                                    } elseif ($bytes >= 1024) {
+                                        $bytes = number_format($bytes / 1024, 2) . ' KB';
+                                    } elseif ($bytes > 1) {
+                                        $bytes = $bytes . ' bytes';
+                                    } elseif ($bytes == 1) {
+                                        $bytes = $bytes . ' byte';
+                                    } else {
+                                        $bytes = '0 bytes';
+                                    }
+                                    return $bytes;
+                                }
+
+                                global $wpdb;
+                                $charset_collate = $wpdb->get_charset_collate();
+                                $tablename = $wpdb->prefix . "ev_" . "backup_logs";
+
+                                $logs = $wpdb->get_results(
+                                        "
+                                       SELECT * 
+                                       FROM $tablename
+                                      "
+                                );
+
+                                $rrr = "<table class=\"tg\"><tr>";
+                                $rrr .= "<th>Name</th>";
+                                $rrr .= "<th>Size</th>";
+                                $rrr .= "<th>Date</th>";
+                                $rrr .= "<th>Path</th>";
+                                $rrr .= "</tr>";
+
+                                if ($logs) {
+                                    foreach ($logs as $log) {
+                                        $rrr .= "<tr>";
+                                        $rrr .= "<td>" . $log->name . "</td>";
+                                        $rrr .= "<td>" . formatSizeUnits($log->size) . "</td>";
+                                        $rrr .= "<td>" . $log->date . "</td>";
+                                        $link_to_file = $drops->getOrCreateSharedLinkForFile($access_token, $log->path);
+                                        if ($link_to_file) {
+                                            $rrr .= "<td><a href='" . $link_to_file . "' target='_blank'>Download .zip</a></td>";
+                                        } else {
+                                            $rrr .= "<td>No file in folder</td>";
+                                        }
+
+                                        $rrr .= "</tr>";
+                                    }
+                                } else {
+                                    echo '<p>Logs is empty.</p>';
+                                }
+
+                                $rrr .= "</table>";
+                                echo $rrr;
                             }
-                        } else {
-                            echo '<p>Logs is empty.</p>';
                         }
-
-                        $rrr.="</table>";
-                        echo $rrr;
-
                         ?>
-
-
                     </p>
                 </section>
             </div>

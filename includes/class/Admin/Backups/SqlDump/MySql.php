@@ -170,18 +170,11 @@ class MySql
     function backquote( $a_name ) {
         if ( ! empty( $a_name ) && $a_name != '*' ) {
             if ( is_array( $a_name ) ) {
-                $result = array();
-                reset( $a_name );
-                while ( list($key, $val) = each( $a_name ) ) {
-                    $result[ $key ] = '`' . $val . '`';
-                }
-                return $result;
-            } else {
-                return '`' . $a_name . '`';
+                return array_map(fn($val) => '`' . $val . '`', $a_name);
             }
-        } else {
-            return $a_name;
+            return '`' . $a_name . '`';
         }
+        return $a_name;
     }
 
     function open( $filename = '', $mode = 'w' ) {

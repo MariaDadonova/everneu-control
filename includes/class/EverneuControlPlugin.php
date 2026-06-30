@@ -64,17 +64,19 @@ class EverneuControlPlugin
         require_once EVN_DIR . 'includes/class/Cron/BackupCronHandler.php';
         new \EVN\Cron\BackupCronHandler();
 
-        require_once EVN_DIR . 'includes/class/Admin/Settings/Settings.php';    
-        require_once EVN_DIR . 'includes/class/Admin/Backups/Backups.php';
-
-
+        require_once EVN_DIR . 'includes/class/Admin/Settings/Settings.php';
         new Admin\Settings\Settings;
-        new Admin\Backups\Backups;
 
+        $backups_file = EVN_DIR . 'includes/class/Admin/Backups/Backups.php';
+        if (file_exists($backups_file)) {
+            require_once $backups_file;
+            new Admin\Backups\Backups;
+        } else {
+            error_log('EVN: Backups.php missing, skipping init');
+            add_action('admin_notices', function() {
+                echo '<div class="notice notice-error"><p>Everneu Control: the plugin installation is damaged, reinstall manually.</p></div>';
+            });
+        }
 
     }
-
-
-
-
 }

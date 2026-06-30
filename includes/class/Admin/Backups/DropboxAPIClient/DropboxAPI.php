@@ -59,15 +59,13 @@ class DropboxAPI
         $result = curl_exec($ch);
         $result_arr = json_decode($result,true);
 
-
-        if (curl_errno($ch)) {
-            $arr = ['status'=>'error','token'=>null];
-        }elseif(isset($result_arr['access_token'])){
-            $arr = ['status'=>'okay','token'=>$result_arr['access_token']];
+        if (curl_errno($ch) || empty($result_arr['access_token'])) {
+            error_log('Dropbox curlRefreshToken failed: ' . curl_error($ch) . ' / response: ' . $result);
+            curl_close($ch);
+            return false;
         }
 
         curl_close($ch);
-
         return $result_arr['access_token'];
     }
 
@@ -94,6 +92,11 @@ class DropboxAPI
 
     //Get list folders
     public function GetListFolder($access_token, $install_name) {
+        if (empty($access_token)) {
+            error_log('Dropbox GetListFolder: empty access token');
+            return false;
+        }
+
         $ch = curl_init();
 
         // path to shared folder by id
@@ -120,19 +123,18 @@ class DropboxAPI
         }
         curl_close ($ch);
 
-
         $json = json_decode($result, true);
-        $bool = false;
+        if (empty($json['entries']) || !is_array($json['entries'])) {
+            error_log('Dropbox GetListFolder: unexpected response - ' . $result);
+            return false;
+        }
         foreach ($json['entries'] as $data) {
-            //echo 'File Name: ' . $data['name'];
             if ($data['name'] == $install_name) {
-                $bool = true;
+                return true;
             }
         }
 
-
-        return $bool;
-
+        return false;
     }
 
 /////////////////////
