@@ -495,7 +495,7 @@ class Backups
 
                     <div style="display: flex; gap: 10px;">
                         <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=evn_export_backup_logs'), 'evn_export_logs')); ?>"
-                           class="button button-primary">
+                           class="button button-primary-set">
                             Download backup logs (CSV)
                         </a>
 

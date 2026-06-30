@@ -100,3 +100,10 @@
     border-left: 1px solid #ccc;
 }
 
+.wp-core-ui .button-primary-set {
+    background: #309bff !important;
+    border: none !important;
+    color: #f1f1f1 !important;
+    font-weight: bold;
+    width: 200px !important;
+}
