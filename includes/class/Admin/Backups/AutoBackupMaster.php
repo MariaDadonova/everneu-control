@@ -343,16 +343,25 @@ class AutoBackupMaster {
 
         $active_state = get_option(self::STATE_OPTION, []);
         $active_dir   = $active_state['tmp_backup_dir'] ?? '';
+        $started_at   = $active_state['started_at'] ?? 0;
 
-        if (!empty($active_dir) && is_dir($active_dir)) {
-            error_log("Backup initBackup: another backup is in progress, aborting — $active_dir");
+        $is_stale = $started_at && (time() - $started_at > 6 * HOUR_IN_SECONDS);
+
+        if (!empty($active_dir) && is_dir($active_dir) && !$is_stale) {
+            error_log("Backup initBackup: another backup is in progress, aborting - $active_dir");
             return false;
+        }
+
+        if ($is_stale) {
+            error_log("Backup initBackup: previous backup stuck for too long, force-cleaning - $active_dir");
+            $this->deleteDir($active_dir);
+            $this->clearState();
         }
 
         foreach (glob(wp_upload_dir()['basedir'] . '/' . $site_slug . '*') ?: [] as $old_dir) {
             if (is_dir($old_dir) && $old_dir !== $active_dir) {
                 $this->deleteDir($old_dir);
-                error_log("Backup initBackup: removed old temp dir — $old_dir");
+                error_log("Backup initBackup: removed old temp dir - $old_dir");
             }
         }
 
@@ -395,7 +404,7 @@ class AutoBackupMaster {
             if (!empty($check)) {
                 $valid_tables[] = $table;
             } else {
-                error_log("Backup stepDumpDb: skipping broken table/view — $table");
+                error_log("Backup stepDumpDb: skipping broken table/view - $table");
             }
         }
 
@@ -411,7 +420,7 @@ class AutoBackupMaster {
             return false;
         }
 
-        error_log("Backup step 2 done: SQL dump created — $result");
+        error_log("Backup step 2 done: SQL dump created - $result");
         return true;
     }
 
@@ -464,7 +473,7 @@ class AutoBackupMaster {
         }
 
         if (!$archive->create($files_to_add)) {
-            error_log("Backup stepArchiveDb: PclZip error — " . $archive->errorInfo(true));
+            error_log("Backup stepArchiveDb: PclZip error - " . $archive->errorInfo(true));
             return false;
         }
 
@@ -543,7 +552,7 @@ class AutoBackupMaster {
             $zip_filename = 'wp-content_' . $subdir_name . '.zip';
 
             if (in_array($zip_filename, $this->file_parts, true)) {
-                error_log("Backup: already archived, skipping — wp-content/$subdir_name");
+                error_log("Backup: already archived, skipping - wp-content/$subdir_name");
                 continue;
             }
 
@@ -567,7 +576,7 @@ class AutoBackupMaster {
                 $this->file_parts[] = $zip_filename;
                 error_log("Backup: archived wp-content/$subdir_name");
             } else {
-                error_log("Backup: failed wp-content/$subdir_name — " . $archive->errorInfo(true));
+                error_log("Backup: failed wp-content/$subdir_name - " . $archive->errorInfo(true));
             }
         }
 
@@ -660,10 +669,10 @@ class AutoBackupMaster {
                     sendtoGoogleUrls($site_url, $linkData);
                     error_log("Backup step 5: sendtoGoogleUrls called successfully");
                 } else {
-                    error_log("Backup step 5: sendtoGoogleUrls still not found after require — $sitemap_file");
+                    error_log("Backup step 5: sendtoGoogleUrls still not found after require - $sitemap_file");
                 }
             } else {
-                error_log("Backup step 5: linkData is false — Dropbox link failed");
+                error_log("Backup step 5: linkData is false - Dropbox link failed");
             }
 
             error_log("Backup step 5 done: all files uploaded");
@@ -674,7 +683,7 @@ class AutoBackupMaster {
         $local_path = $this->tmp_backup_dir . '/' . $part;
 
         if (!file_exists($local_path)) {
-            error_log("Backup stepUploadNextFile: file not found, skipping — $local_path");
+            error_log("Backup stepUploadNextFile: file not found, skipping - $local_path");
             $this->upload_index = $index + 1;
             $this->saveState();
             return 'continue';
@@ -684,7 +693,7 @@ class AutoBackupMaster {
         $fp   = fopen($local_path, 'rb');
 
         if (!$fp || $size === false) {
-            error_log("Backup stepUploadNextFile: cannot open — $local_path");
+            error_log("Backup stepUploadNextFile: cannot open - $local_path");
             $this->upload_index = $index + 1;
             $this->saveState();
             return 'continue';
@@ -694,7 +703,7 @@ class AutoBackupMaster {
             $drops->SendFile($access_token, $full_backup_path . '/' . $part, $fp, $size);
             error_log("Backup stepUploadNextFile: uploaded $part");
         } catch (\Exception $e) {
-            error_log("Backup stepUploadNextFile: error on $part — " . $e->getMessage());
+            error_log("Backup stepUploadNextFile: error on $part - " . $e->getMessage());
         } finally {
             if (is_resource($fp)) fclose($fp);
         }
@@ -710,7 +719,7 @@ class AutoBackupMaster {
     public function stepCleanup(): void {
         if (!empty($this->tmp_backup_dir)) {
             $this->deleteDir($this->tmp_backup_dir);
-            error_log("Backup step 6 done: temp directory deleted — {$this->tmp_backup_dir}");
+            error_log("Backup step 6 done: temp directory deleted - {$this->tmp_backup_dir}");
         }
 
         $this->clearState();
