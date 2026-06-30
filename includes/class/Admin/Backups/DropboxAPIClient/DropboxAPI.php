@@ -191,16 +191,11 @@ class DropboxAPI
     //Send file to dropbox
     //file size <150Mb
     public function SendFile($access_token, $name, $fp, $size) {
-
-        // path to shared folder by ID
-        //$folder_path = "/id:hXUzUes2rSUAAAAAAAAAAQ/" . $name;
         $folder_path = "/Secondary Backups/" . $name;
 
         $cheaders = array('Authorization: Bearer '.$access_token,
             'Content-Type: application/octet-stream',
-            /*'Dropbox-API-Arg: {"path":"/Apps/'.$name.'"}');*/
             'Dropbox-API-Arg: {"path":"' . $folder_path . '", "mode":"add", "autorename":true, "mute":false}');
-
 
         $ch = curl_init('https://content.dropboxapi.com/2/files/upload');
         curl_setopt($ch, CURLOPT_HTTPHEADER, $cheaders);
@@ -209,14 +204,21 @@ class DropboxAPI
         curl_setopt($ch, CURLOPT_INFILE, $fp);
         curl_setopt($ch, CURLOPT_INFILESIZE, $size);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
         $response = curl_exec($ch);
+        $curl_failed = curl_errno($ch);
+        if ($curl_failed) {
+            error_log('Dropbox SendFile curl error: ' . curl_error($ch));
+        }
 
         curl_close($ch);
-        fclose($fp);
+        if (is_resource($fp)) fclose($fp);
 
-        /* Fill in the log table */
+        if ($curl_failed) {
+            return false;
+        }
+
         global $wpdb;
-        $charset_collate = $wpdb->get_charset_collate();
         $tablename = $wpdb->prefix. "ev_" . "backup_logs";
 
         $wpdb->insert(
@@ -228,7 +230,6 @@ class DropboxAPI
                 'path' => $folder_path,
             )
         );
-
 
         return $response;
     }
@@ -256,6 +257,7 @@ class DropboxAPI
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $chunk);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
                 $response = curl_exec($ch);
                 curl_close($ch);
@@ -294,6 +296,7 @@ class DropboxAPI
                     curl_setopt($ch, CURLOPT_POST, true);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, $chunk);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
                     $response = curl_exec($ch);
                     curl_close($ch);
@@ -319,6 +322,7 @@ class DropboxAPI
                     curl_setopt($ch, CURLOPT_POST, true);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, $chunk);
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
                     curl_exec($ch); // No response on success
                     curl_close($ch);
