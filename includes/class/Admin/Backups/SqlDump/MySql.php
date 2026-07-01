@@ -1,6 +1,5 @@
 <?php
 
-
 class MySql
 {
     public $fp;
@@ -14,7 +13,9 @@ class MySql
         global $table_prefix, $wpdb;
 
         $table_prefix = ( isset( $table_prefix ) ) ? $table_prefix : $wpdb->prefix;
-        $this->backup_filename = DB_NAME . "_$table_prefix.sql";
+
+        // Use timestamp in filename to avoid double-prefix issue (e.g. wp_dbname_wp_.sql)
+        $this->backup_filename = DB_NAME . "_" . date('Y-m-d_H-i-s') . ".sql";
 
         $possible_names = array(
             'categories',
@@ -124,12 +125,14 @@ class MySql
                     @set_time_limit( 15 * 60 );
                 }
                 $table_data = $wpdb->get_results( "SELECT * FROM $table LIMIT {$row_start}, {$row_inc}", ARRAY_A );
-                //$table_data = $wpdb->get_results( "SELECT * FROM $table", ARRAY_A );
 
                 $entries = 'INSERT INTO ' . $this->backquote( $table ) . ' VALUES (';
-                //    \x08\\x09, not required
-                $search  = array( "\x00", "\x0a", "\x0d", "\x1a" );
-                $replace = array( '\0', '\n', '\r', '\Z' );
+
+                // Standard MySQL escape sequences + Unicode line/paragraph separators
+                // (LS U+2028 = \xe2\x80\xa8, PS U+2029 = \xe2\x80\xa9) which corrupt
+                // the SQL file and prevent clean import if left unescaped.
+                $search  = array( "\x00", "\x0a", "\x0d", "\x1a", "\xe2\x80\xa8", "\xe2\x80\xa9" );
+                $replace = array( '\0',   '\n',   '\r',   '\Z',    '\n',            '\n' );
 
                 if ( $table_data ) {
                     foreach ( $table_data as $row ) {
@@ -230,10 +233,12 @@ class MySql
             $this->fp = $this->open($backup_dir . $this->backup_filename);
             if (!$this->fp) {
                 $this->error(__('Could not open the backup file for writing!', 'wp-db-backup'));
+                error_log('MySql db_backup: failed to open file - ' . $backup_dir . $this->backup_filename);
                 return false;
             }
         } else {
             $this->error(__('The backup directory is not writeable!', 'wp-db-backup'));
+            error_log('MySql db_backup: directory not writable - ' . $backup_dir);
             return false;
         }
 
@@ -263,6 +268,7 @@ class MySql
         $this->close( $this->fp );
 
         if ( count( $this->errors ) ) {
+            error_log('MySql db_backup: completed with errors - ' . print_r($this->errors, true));
             return false;
         } else {
             return $this->backup_filename;
