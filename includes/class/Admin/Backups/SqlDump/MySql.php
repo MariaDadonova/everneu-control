@@ -140,12 +140,9 @@ class MySql
                             } else {
                                 if ( $value === null ) {
                                     $values[] = 'NULL';
+                                } elseif ( $value === '' ) {
+                                    $values[] = "''";
                                 } else {
-                                    // Export as hex literal (0x...) to preserve exact byte sequence.
-                                    // This avoids any risk of corrupting serialized data (Beaver Builder,
-                                    // ACF, Elementor etc.) by mangling multibyte characters like U+2028/U+2029
-                                    // or raw line breaks inside string values — the dump becomes byte-safe
-                                    // regardless of what the value contains.
                                     $values[] = '0x' . bin2hex( (string) $value );
                                 }
                             }
