@@ -144,7 +144,15 @@ class MySql
                                 $value    = ( null === $value || '' === $value ) ? $defs[ strtolower( $key ) ] : $value;
                                 $values[] = ( '' === $value ) ? "''" : $value;
                             } else {
-                                $values[] = "'" . str_replace( $search, $replace, $this->sql_addslashes( $value ) ) . "'";
+                                // Preserve NULL as SQL NULL, not as empty string ''.
+                                // Without this, NULL values in unique-indexed columns
+                                // (e.g. MailPoet unsubscribe_token) cause
+                                // "Duplicate entry ''" on import.
+                                if ( $value === null ) {
+                                    $values[] = 'NULL';
+                                } else {
+                                    $values[] = "'" . str_replace( $search, $replace, $this->sql_addslashes( $value ) ) . "'";
+                                }
                             }
                         }
                         $this->stow( " \n" . $entries . implode( ', ', $values ) . ');' );
@@ -249,7 +257,14 @@ class MySql
         $this->stow( '# ' . sprintf( __( 'Hostname: %s', 'wp-db-backup' ), DB_HOST ) . "\n" );
         $this->stow( '# ' . sprintf( __( 'Database: %s', 'wp-db-backup' ), $this->backquote( DB_NAME ) ) . "\n" );
         $this->stow( "# --------------------------------------------------------\n" );
+        $this->stow( "\n" );
 
+        // Disable foreign key checks for the duration of the import so that
+        // tables referencing not-yet-created parent tables (e.g. Rank Math
+        // link genius map_variations → maps) don't cause import errors.
+        // Re-enabled at the end of the dump.
+        $this->stow( "SET FOREIGN_KEY_CHECKS=0;\n" );
+        $this->stow( "\n" );
 
         $tables = $core_tables;
 
@@ -264,6 +279,10 @@ class MySql
             $this->stow( "# --------------------------------------------------------\n" );
             $this->backup_table( $table );
         }
+
+        // Re-enable foreign key checks after all tables and data are in place
+        $this->stow( "\n" );
+        $this->stow( "SET FOREIGN_KEY_CHECKS=1;\n" );
 
         $this->close( $this->fp );
 
