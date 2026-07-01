@@ -18,20 +18,19 @@ require_once ABSPATH . 'wp-admin/includes/class-pclzip.php';
  * between steps using wp_options.
  *
  * Backup flow:
- *   Step 1 (initBackup)         — Create temp directory
- *   Step 2 (stepDumpDb)         — Generate SQL dump via MySql class
- *   Step 3 (stepArchiveDb)      — Zip SQL dump into db_backup.zip
- *   Step 4 (stepArchiveFolders) — Zip wp-content subdirs and root files directly from WP_CONTENT_DIR
- *   Step 5 (stepUploadDropbox)  — Upload all archives and metadata.json to Dropbox
- *   Step 6 (stepCleanup)        — Delete temp directory and clear saved state
+ *   Step 1 (initBackup)         - Create temp directory
+ *   Step 2 (stepDumpDb)         - Generate SQL dump via MySql class
+ *   Step 3 (stepArchiveDb)      - Zip SQL dump into db_backup.zip
+ *   Step 4 (stepArchiveFolders) - Zip wp-content subdirs and root files directly from WP_CONTENT_DIR
+ *   Step 5 (stepUploadDropbox)  - Upload all archives and metadata.json to Dropbox
+ *   Step 6 (stepCleanup)        - Delete temp directory and clear saved state
  */
 class AutoBackupMaster {
 
     /** wp_options key used to persist backup state between cron steps */
     const STATE_OPTION = 'ev_backup_state';
-    const LARGE_FILE_THRESHOLD = 20 * 1024 * 1024;
-    const CHUNK_SIZE_LIMIT = 200 * 1024 * 1024; // 200 MB per archive chunk
-    const CHUNK_FILE_LIMIT = 500; // max files per archive chunk, regardless of total size
+    const LARGE_FILE_THRESHOLD = 20 * 1024 * 1024;   // 20 MB - chunked upload above this
+    const CHUNK_SIZE_LIMIT     = 200 * 1024 * 1024;  // 200 MB per archive chunk
 
     /** @var string Absolute path to the temporary backup directory */
     private $tmp_backup_dir;
@@ -75,6 +74,10 @@ class AutoBackupMaster {
     }
 
     private function saveState() {
+        // Preserve started_at from existing state - set once on first save, never overwritten
+        $current    = get_option(self::STATE_OPTION, []);
+        $started_at = $current['started_at'] ?? time();
+
         update_option(self::STATE_OPTION, [
             'tmp_backup_dir' => $this->tmp_backup_dir,
             'backup_name'    => $this->backup_name,
@@ -82,6 +85,7 @@ class AutoBackupMaster {
             'file_parts'     => $this->file_parts,
             'upload_index'   => $this->upload_index,
             'folders_queue'  => $this->folders_queue,
+            'started_at'     => $started_at,
         ]);
     }
 
@@ -115,7 +119,7 @@ class AutoBackupMaster {
                 continue;
             }
 
-            $chunks = $this->splitFilesIntoChunks($all_files);
+            $chunks      = $this->splitFilesIntoChunks($all_files);
             $total_parts = count($chunks);
 
             foreach ($chunks as $i => $chunk_files) {
@@ -139,19 +143,29 @@ class AutoBackupMaster {
     }
 
     /**
-     * Splits a list of file paths into chunks, respecting both a total size
-     * limit and a max file count per chunk — whichever boundary is hit first.
+     * Splits a list of file paths into chunks respecting both a size limit
+     * and a dynamic file-count limit.
+     *
+     * The file-count limit is adaptive: directories with many small files
+     * (plugins, themes — mostly PHP < 100 KB average) get a higher per-chunk
+     * file limit (3000) so they don't explode into dozens of tiny archives.
+     * Directories with large files (uploads - images/video) get a tighter
+     * limit (500) to keep each cron step well within execution time limits.
      */
     private function splitFilesIntoChunks(array $files): array {
         $chunks        = [];
         $current_chunk = [];
         $current_size  = 0;
 
+        $total_size = array_sum(array_map(fn($f) => @filesize($f) ?: 0, $files));
+        $avg_size   = count($files) > 0 ? $total_size / count($files) : 0;
+        $file_limit = $avg_size < 100 * 1024 ? 3000 : 500;
+
         foreach ($files as $f) {
             $fsize = @filesize($f) ?: 0;
 
             $would_exceed_size  = !empty($current_chunk) && ($current_size + $fsize > self::CHUNK_SIZE_LIMIT);
-            $would_exceed_count = count($current_chunk) >= self::CHUNK_FILE_LIMIT;
+            $would_exceed_count = count($current_chunk) >= $file_limit;
 
             if ($would_exceed_size || $would_exceed_count) {
                 $chunks[]      = $current_chunk;
@@ -188,7 +202,6 @@ class AutoBackupMaster {
         }
 
         if (empty($this->folders_queue)) {
-            // The queue is empty - write metadata and finish
             if (!file_exists($this->tmp_backup_dir . '/metadata.json')) {
                 $this->writeMetadata();
             }
@@ -196,7 +209,6 @@ class AutoBackupMaster {
             return 'done';
         }
 
-        // Takes the first item from the queue
         $item = array_shift($this->folders_queue);
 
         if ($item['type'] === 'subdir-chunk') {
@@ -209,7 +221,6 @@ class AutoBackupMaster {
 
         $this->saveState();
 
-        // Check again - if the queue is empty after shift, we finalize
         if (empty($this->folders_queue)) {
             $this->writeMetadata();
             error_log("Backup stepArchiveNextFolder: last item processed, all done");
@@ -221,8 +232,7 @@ class AutoBackupMaster {
 
     /**
      * Archives exactly ONE pre-computed chunk of files from a wp-content
-     * subdirectory. Called once per cron step — never archives more than
-     * one chunk per call, regardless of subdir size or file count.
+     * subdirectory. Called once per cron step.
      */
     private function archiveSubdirChunk(array $item): void {
         $subdir      = $item['subdir'];
@@ -242,7 +252,7 @@ class AutoBackupMaster {
 
         $files_to_add = [];
         foreach ($files as $f) {
-            if (!file_exists($f)) continue; // file may have been removed since queue init
+            if (!file_exists($f)) continue;
             $files_to_add[] = [
                 PCLZIP_ATT_FILE_NAME          => $f,
                 PCLZIP_ATT_FILE_NEW_FULL_NAME => 'wp-content/' . $subdir_name . '/' . substr($f, strlen($subdir) + 1),
@@ -302,9 +312,7 @@ class AutoBackupMaster {
 
         $root_files = array_filter(glob($site_root . '/*') ?: [], function ($f) {
             if (!is_file($f)) return false;
-            $base = basename($f);
-            $ext  = pathinfo($f, PATHINFO_EXTENSION);
-            // skip our own backup artifacts and obvious junk
+            $ext = pathinfo($f, PATHINFO_EXTENSION);
             if (in_array($ext, ['sql', 'log'], true)) return false;
             return true;
         });
@@ -345,7 +353,6 @@ class AutoBackupMaster {
      *
      * Removes leftover temp dirs from previous failed backups,
      * creates a unique temporary directory in wp-content/uploads.
-     * No file copying — archiving is done directly from WP_CONTENT_DIR in step 4.
      */
     public function initBackup(): bool {
         $site_name = $_SERVER['HTTP_HOST'];
@@ -380,7 +387,9 @@ class AutoBackupMaster {
                 ['.', ' ', ':'], ['_', '_', '-'], $this->backup_name
             );
 
-        if (!mkdir($this->tmp_backup_dir, 0755, true) && !is_dir($this->tmp_backup_dir)) {
+        // Use 0777 to ensure cron-triggered PHP processes (which may run under
+        // a different system user than the web request) can write to this dir.
+        if (!mkdir($this->tmp_backup_dir, 0777, true) && !is_dir($this->tmp_backup_dir)) {
             error_log("Backup initBackup: failed to create temp dir: {$this->tmp_backup_dir}");
             return false;
         }
@@ -399,9 +408,34 @@ class AutoBackupMaster {
             return false;
         }
 
+        // On distributed filesystems (e.g. WP Engine NAS) the directory created
+        // in step 1 may not yet be visible on the node handling this cron request.
+        // Wait up to 5 seconds for it to appear.
+        $attempts = 0;
+        while (!is_dir($this->tmp_backup_dir) && $attempts < 5) {
+            sleep(1);
+            $attempts++;
+            error_log("Backup stepDumpDb: waiting for tmp dir, attempt $attempts - {$this->tmp_backup_dir}");
+        }
+
+        if (!is_dir($this->tmp_backup_dir)) {
+            error_log("Backup stepDumpDb: tmp dir not found after waiting - {$this->tmp_backup_dir}");
+            return false;
+        }
+
+        if (!is_writable($this->tmp_backup_dir)) {
+            error_log("Backup stepDumpDb: tmp dir not writable, trying chmod - {$this->tmp_backup_dir}");
+            chmod($this->tmp_backup_dir, 0777);
+            if (!is_writable($this->tmp_backup_dir)) {
+                error_log("Backup stepDumpDb: chmod failed, giving up - {$this->tmp_backup_dir}");
+                return false;
+            }
+            error_log("Backup stepDumpDb: chmod to 0777 succeeded");
+        }
+
         foreach (glob($this->tmp_backup_dir . '/*.sql') ?: [] as $old_sql) {
             @unlink($old_sql);
-            error_log("Backup stepDumpDb: removed stale sql — $old_sql");
+            error_log("Backup stepDumpDb: removed stale sql - $old_sql");
         }
 
         $database   = new MySql();
@@ -426,7 +460,10 @@ class AutoBackupMaster {
         $result = $database->db_backup($valid_tables, $this->tmp_backup_dir);
 
         if ($result === false) {
-            error_log("Backup stepDumpDb: dump failed");
+            error_log("Backup stepDumpDb: dump failed"
+                . " — dir=" . $this->tmp_backup_dir
+                . " writable=" . (is_writable($this->tmp_backup_dir) ? 'yes' : 'no')
+                . " errors=" . print_r($database->errors, true));
             return false;
         }
 
@@ -445,7 +482,7 @@ class AutoBackupMaster {
 
         $db_dir = $this->tmp_backup_dir . '/db';
 
-        if (!mkdir($db_dir, 0755, true) && !is_dir($db_dir)) {
+        if (!mkdir($db_dir, 0777, true) && !is_dir($db_dir)) {
             error_log("Backup stepArchiveDb: cannot create db directory");
             return false;
         }
@@ -532,7 +569,6 @@ class AutoBackupMaster {
         $drops        = new DropboxAPI($app_key, $app_secret, $access_code);
         $access_token = $drops->curlRefreshToken($refresh_token);
 
-        // NEW: bail out early if we couldn't get a valid token
         if (!$access_token) {
             error_log("Backup stepUploadNextFile: failed to get Dropbox access token");
             return 'error';
@@ -598,7 +634,6 @@ class AutoBackupMaster {
             return 'continue';
         }
 
-        // NEW: chunked upload for large files, confirmation check
         try {
             if ($size > self::LARGE_FILE_THRESHOLD) {
                 error_log("Backup stepUploadNextFile: large file ({$size} bytes), using chunked upload - $part");
