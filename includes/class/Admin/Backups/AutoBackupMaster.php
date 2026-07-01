@@ -62,7 +62,16 @@ class AutoBackupMaster {
     // -------------------------------------------------------------------------
 
     private function loadState() {
-        $state = get_option(self::STATE_OPTION, []);
+        // Bypass object cache entirely - read directly from DB to avoid stale
+        // values when running in a separate cron process on WP Engine
+        global $wpdb;
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+                self::STATE_OPTION
+            )
+        );
+        $state = $row ? maybe_unserialize($row->option_value) : [];
         if (!empty($state)) {
             $this->tmp_backup_dir = $state['tmp_backup_dir'] ?? '';
             $this->backup_name    = $state['backup_name']    ?? '';
@@ -74,11 +83,18 @@ class AutoBackupMaster {
     }
 
     private function saveState() {
-        // Preserve started_at from existing state - set once on first save, never overwritten
-        $current    = get_option(self::STATE_OPTION, []);
-        $started_at = $current['started_at'] ?? time();
+        // Read started_at directly from DB (not cache) to preserve it across saves
+        global $wpdb;
+        $existing_row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+                self::STATE_OPTION
+            )
+        );
+        $existing    = $existing_row ? maybe_unserialize($existing_row->option_value) : [];
+        $started_at  = $existing['started_at'] ?? time();
 
-        update_option(self::STATE_OPTION, [
+        $data = [
             'tmp_backup_dir' => $this->tmp_backup_dir,
             'backup_name'    => $this->backup_name,
             'db_parts'       => $this->db_parts,
@@ -86,7 +102,20 @@ class AutoBackupMaster {
             'upload_index'   => $this->upload_index,
             'folders_queue'  => $this->folders_queue,
             'started_at'     => $started_at,
-        ]);
+        ];
+
+        // Write directly to DB with autoload='no' to prevent WP Engine object cache
+        // from serving a stale value to a concurrent cron process
+        $wpdb->query(
+            $wpdb->prepare(
+                "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
+             VALUES (%s, %s, 'no')
+             ON DUPLICATE KEY UPDATE option_value = VALUES(option_value), autoload = 'no'",
+                self::STATE_OPTION,
+                maybe_serialize($data)
+            )
+        );
+        wp_cache_delete(self::STATE_OPTION, 'options');
     }
 
     private function clearState() {
