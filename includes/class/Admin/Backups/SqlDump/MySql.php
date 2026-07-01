@@ -128,12 +128,6 @@ class MySql
 
                 $entries = 'INSERT INTO ' . $this->backquote( $table ) . ' VALUES (';
 
-                // Standard MySQL escape sequences + Unicode line/paragraph separators
-                // (LS U+2028 = \xe2\x80\xa8, PS U+2029 = \xe2\x80\xa9) which corrupt
-                // the SQL file and prevent clean import if left unescaped.
-                $search  = array( "\x00", "\x0a", "\x0d", "\x1a", "\xe2\x80\xa8", "\xe2\x80\xa9" );
-                $replace = array( '\0',   '\n',   '\r',   '\Z',    '\n',            '\n' );
-
                 if ( $table_data ) {
                     foreach ( $table_data as $row ) {
                         $values = array();
@@ -144,14 +138,15 @@ class MySql
                                 $value    = ( null === $value || '' === $value ) ? $defs[ strtolower( $key ) ] : $value;
                                 $values[] = ( '' === $value ) ? "''" : $value;
                             } else {
-                                // Preserve NULL as SQL NULL, not as empty string ''.
-                                // Without this, NULL values in unique-indexed columns
-                                // (e.g. MailPoet unsubscribe_token) cause
-                                // "Duplicate entry ''" on import.
                                 if ( $value === null ) {
                                     $values[] = 'NULL';
                                 } else {
-                                    $values[] = "'" . str_replace( $search, $replace, $this->sql_addslashes( $value ) ) . "'";
+                                    // Export as hex literal (0x...) to preserve exact byte sequence.
+                                    // This avoids any risk of corrupting serialized data (Beaver Builder,
+                                    // ACF, Elementor etc.) by mangling multibyte characters like U+2028/U+2029
+                                    // or raw line breaks inside string values — the dump becomes byte-safe
+                                    // regardless of what the value contains.
+                                    $values[] = '0x' . bin2hex( (string) $value );
                                 }
                             }
                         }
