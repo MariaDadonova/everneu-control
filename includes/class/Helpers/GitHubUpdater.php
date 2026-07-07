@@ -20,10 +20,13 @@ class GitHubUpdater {
 
         add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_update']);
 
+        //error_log("==== Everneu plugin log ====");
+        //error_log("==== GitHubUpdater Construct ====");
         //error_log(print_r('this->plugin_file: ' . $this->plugin_file, true));
 
         $current_plugin_data = get_plugin_data($this->plugin_file);
         //error_log("GitHubUpdater current_plugin_data: " . print_r($current_plugin_data, true));
+        //error_log("==== End Everneu plugin log ====");
 
         add_filter('plugins_api', [$this, 'plugins_api'], 10, 3);
         add_filter('upgrader_post_install', [$this, 'after_install'], 10, 3);
@@ -58,8 +61,11 @@ class GitHubUpdater {
     }
 
     public function check_for_update($transient) {
+        //error_log("==== Everneu plugin log ====");
+        //error_log("==== GitHubUpdater check_for_update ====");
         //error_log('GitHubUpdater check_for_update called');
         //error_log("GitHubUpdater plugin_file path: " . $this->plugin_file);
+        //error_log("==== End Everneu plugin log ====");
 
         if (!function_exists('get_plugin_data')) {
             require_once(ABSPATH . 'wp-admin/includes/plugin.php');
@@ -79,7 +85,10 @@ class GitHubUpdater {
             ]);
 
             if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+                error_log("==== Everneu plugin log ====");
+                error_log("==== GitHubUpdater check_for_update ====");
                 error_log('GitHubUpdater: check failed - ' . (is_wp_error($response) ? $response->get_error_message() : wp_remote_retrieve_response_code($response)));
+                error_log("==== End Everneu plugin log ====");
                 set_transient($cache_key, ['remote_version' => ''], 30 * MINUTE_IN_SECONDS);
                 return $transient;
             }
@@ -170,7 +179,10 @@ class GitHubUpdater {
         // Sanity check BEFORE deleting anything: main plugin file must exist in the new source
         $main_file_in_source = trailingslashit($source) . basename($this->plugin_file);
         if (!$wp_filesystem->exists($main_file_in_source)) {
+            error_log("==== Everneu plugin log ====");
+            error_log("==== GitHubUpdater after_install ====");
             error_log('GitHubUpdater: aborting update - main plugin file missing in downloaded package: ' . $main_file_in_source);
+            error_log("==== End Everneu plugin log ====");
             $result['destination'] = $plugin_dir; // keep old version untouched
             return $result;
         }
@@ -181,7 +193,10 @@ class GitHubUpdater {
         }
 
         if (!$wp_filesystem->move($source, $plugin_dir)) {
+            error_log("==== Everneu plugin log ====");
+            error_log("==== GitHubUpdater after_install ====");
             error_log('GitHubUpdater: move failed, restoring previous version');
+            error_log("==== End Everneu plugin log ====");
             if ($wp_filesystem->is_dir($backup_dir)) {
                 $wp_filesystem->move($backup_dir, $plugin_dir);
             }

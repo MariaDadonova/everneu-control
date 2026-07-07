@@ -296,10 +296,16 @@ class Backups
                             wp_schedule_single_event(time() + 5, 'backup_step_dump_db');
                             spawn_cron();
                             echo '<div class="notice notice-success"><p>Backup started! Steps are running in the background.</p></div>';
+                            error_log("==== Everneu plugin log ====");
+                            error_log("==== Backup ====");
                             error_log('Manual backup initiated successfully.');
+                            error_log("==== End Everneu plugin log ====");
                         } else {
                             echo '<div class="notice notice-error"><p>Failed to initiate backup.</p></div>';
+                            error_log("==== Everneu plugin log ====");
+                            error_log("==== Backup ====");
                             error_log('Failed to initiate manual backup.');
+                            error_log("==== End Everneu plugin log ====");
                         }
                     }
                     ?>
@@ -330,11 +336,17 @@ class Backups
                           if (!get_option('ev_dropbox_settings')) {
                               add_option('ev_dropbox_settings', $dropbox_settings);
                               echo '<div id="message" class="updated"><p>DropBox keys saved successfully!</p></div>';
+                              error_log("==== Everneu plugin log ====");
+                              error_log("==== Backup ====");
                               error_log("DropBox keys saved successfully");
+                              error_log("==== End Everneu plugin log ====");
                           } else {
                               update_option('ev_dropbox_settings', $dropbox_settings);
                               echo '<div id="message" class="updated"><p>DropBox keys updated successfully!</p></div>';
+                              error_log("==== Everneu plugin log ====");
+                              error_log("==== Backup ====");
                               error_log("DropBox keys updated successfully");
+                              error_log("==== End Everneu plugin log ====");
                           }
                       }
 
