@@ -132,6 +132,9 @@ class AutoBackupMaster {
      * Called once after stepArchiveDb.
      */
     public function initFoldersQueue(): void {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster initFoldersQueue ====");
+
         $wp_content_src = WP_CONTENT_DIR;
         $queue = [];
 
@@ -169,6 +172,7 @@ class AutoBackupMaster {
         $this->folders_queue = $queue;
         $this->saveState();
         error_log('Backup initFoldersQueue: queue initialized with ' . count($queue) . ' items');
+        error_log("==== End Everneu plugin log ====");
     }
 
     /**
@@ -220,13 +224,18 @@ class AutoBackupMaster {
      * 'error' if state is not found.
      */
     public function stepArchiveNextFolder(): string {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster stepArchiveNextFolder ====");
+
         if (empty($this->tmp_backup_dir)) {
             error_log("Backup stepArchiveNextFolder: no state found");
+            error_log("==== End Everneu plugin log ====");
             return 'error';
         }
 
         if ($this->folders_queue === null) {
             error_log("Backup stepArchiveNextFolder: queue not initialized");
+            error_log("==== End Everneu plugin log ====");
             return 'error';
         }
 
@@ -235,6 +244,7 @@ class AutoBackupMaster {
                 $this->writeMetadata();
             }
             error_log("Backup stepArchiveNextFolder: queue empty, all folders done");
+            error_log("==== End Everneu plugin log ====");
             return 'done';
         }
 
@@ -253,6 +263,7 @@ class AutoBackupMaster {
         if (empty($this->folders_queue)) {
             $this->writeMetadata();
             error_log("Backup stepArchiveNextFolder: last item processed, all done");
+            error_log("==== End Everneu plugin log ====");
             return 'done';
         }
 
@@ -264,6 +275,9 @@ class AutoBackupMaster {
      * subdirectory. Called once per cron step.
      */
     private function archiveSubdirChunk(array $item): void {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster archiveSubdirChunk ====");
+
         $subdir      = $item['subdir'];
         $subdir_name = $item['subdir_name'];
         $files       = $item['files'];
@@ -276,6 +290,7 @@ class AutoBackupMaster {
 
         if (in_array($zip_filename, $this->file_parts, true)) {
             error_log("Backup: already archived, skipping - $zip_filename");
+            error_log("==== End Everneu plugin log ====");
             return;
         }
 
@@ -290,6 +305,7 @@ class AutoBackupMaster {
 
         if (empty($files_to_add)) {
             error_log("Backup: chunk $zip_filename had no existing files, skipping");
+            error_log("==== End Everneu plugin log ====");
             return;
         }
 
@@ -300,12 +316,17 @@ class AutoBackupMaster {
         } else {
             error_log("Backup: failed chunk $zip_filename - " . $archive->errorInfo(true));
         }
+
+        error_log("==== End Everneu plugin log ====");
     }
 
     /**
      * Archives wp-content root files (not folders, not .sql).
      */
     private function archiveWpContentRootFiles(): void {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster archiveWpContentRootFiles ====");
+
         if (in_array('wp-content_root.zip', $this->file_parts, true)) return;
 
         $root_files = array_filter(glob(WP_CONTENT_DIR . '/*') ?: [], function ($f) {
@@ -329,12 +350,17 @@ class AutoBackupMaster {
             $this->file_parts[] = 'wp-content_root.zip';
             error_log("Backup: archived wp-content root files");
         }
+
+        error_log("==== End Everneu plugin log ====");
     }
 
     /**
      * Archives the root files of the site (not wp-content, not service files).
      */
     private function archiveSiteRootFiles(): void {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster archiveSiteRootFiles ====");
+
         if (in_array('root_files.zip', $this->file_parts, true)) return;
 
         $site_root = rtrim(ABSPATH, '/\\');
@@ -357,12 +383,17 @@ class AutoBackupMaster {
             $this->file_parts[] = 'root_files.zip';
             error_log("Backup: archived site root files");
         }
+
+        error_log("==== End Everneu plugin log ====");
     }
 
     /**
      * Writes metadata.json with the final archive list.
      */
     private function writeMetadata(): void {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster writeMetadata ====");
+
         file_put_contents(
             $this->tmp_backup_dir . '/metadata.json',
             json_encode([
@@ -373,7 +404,9 @@ class AutoBackupMaster {
             ], JSON_PRETTY_PRINT)
         );
         $this->saveState();
+
         error_log("Backup: metadata.json written");
+        error_log("==== End Everneu plugin log ====");
     }
 
 
@@ -384,6 +417,9 @@ class AutoBackupMaster {
      * creates a unique temporary directory in wp-content/uploads.
      */
     public function initBackup(): bool {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster initBackup ====");
+
         $site_name = $_SERVER['HTTP_HOST'];
         $site_slug = str_replace(['.', ' ', ':'], ['_', '_', '-'], $site_name);
 
@@ -395,6 +431,7 @@ class AutoBackupMaster {
 
         if (!empty($active_dir) && is_dir($active_dir) && !$is_stale) {
             error_log("Backup initBackup: another backup is in progress, aborting - $active_dir");
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -420,11 +457,13 @@ class AutoBackupMaster {
         // a different system user than the web request) can write to this dir.
         if (!mkdir($this->tmp_backup_dir, 0777, true) && !is_dir($this->tmp_backup_dir)) {
             error_log("Backup initBackup: failed to create temp dir: {$this->tmp_backup_dir}");
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
         $this->saveState();
         error_log("Backup step 1 done: tmp dir created at {$this->tmp_backup_dir}");
+        error_log("==== End Everneu plugin log ====");
         return true;
     }
 
@@ -432,8 +471,12 @@ class AutoBackupMaster {
      * Step 2: Create SQL dump.
      */
     public function stepDumpDb(): bool {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster stepDumpDb ====");
+
         if (empty($this->tmp_backup_dir)) {
             error_log("Backup stepDumpDb: no state found");
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -449,6 +492,7 @@ class AutoBackupMaster {
 
         if (!is_dir($this->tmp_backup_dir)) {
             error_log("Backup stepDumpDb: tmp dir not found after waiting - {$this->tmp_backup_dir}");
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -457,6 +501,7 @@ class AutoBackupMaster {
             chmod($this->tmp_backup_dir, 0777);
             if (!is_writable($this->tmp_backup_dir)) {
                 error_log("Backup stepDumpDb: chmod failed, giving up - {$this->tmp_backup_dir}");
+                error_log("==== End Everneu plugin log ====");
                 return false;
             }
             error_log("Backup stepDumpDb: chmod to 0777 succeeded");
@@ -483,6 +528,7 @@ class AutoBackupMaster {
 
         if (empty($valid_tables)) {
             error_log("Backup stepDumpDb: no valid tables found");
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -493,10 +539,12 @@ class AutoBackupMaster {
                 . " — dir=" . $this->tmp_backup_dir
                 . " writable=" . (is_writable($this->tmp_backup_dir) ? 'yes' : 'no')
                 . " errors=" . print_r($database->errors, true));
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
         error_log("Backup step 2 done: SQL dump created - $result");
+        error_log("==== End Everneu plugin log ====");
         return true;
     }
 
@@ -504,8 +552,12 @@ class AutoBackupMaster {
      * Step 3: Archive the SQL dump into db_backup.zip.
      */
     public function stepArchiveDb(): bool {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster stepArchiveDb ====");
+
         if (empty($this->tmp_backup_dir)) {
             error_log("Backup stepArchiveDb: no state found, cannot proceed");
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -513,6 +565,7 @@ class AutoBackupMaster {
 
         if (!mkdir($db_dir, 0777, true) && !is_dir($db_dir)) {
             error_log("Backup stepArchiveDb: cannot create db directory");
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -520,6 +573,7 @@ class AutoBackupMaster {
 
         if (empty($sql_files)) {
             error_log("Backup stepArchiveDb: no SQL files found in {$this->tmp_backup_dir}");
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -534,6 +588,7 @@ class AutoBackupMaster {
 
         if (empty($sql_in_dir)) {
             error_log("Backup stepArchiveDb: no SQL files found after move, skipping archive");
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -550,6 +605,7 @@ class AutoBackupMaster {
 
         if (!$archive->create($files_to_add)) {
             error_log("Backup stepArchiveDb: PclZip error - " . $archive->errorInfo(true));
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -559,6 +615,7 @@ class AutoBackupMaster {
 
         $this->saveState();
         error_log("Backup step 3 done: db_backup.zip created at $db_zip");
+        error_log("==== End Everneu plugin log ====");
         return true;
     }
 
@@ -567,8 +624,12 @@ class AutoBackupMaster {
      * Returns 'done', 'continue', or 'error'.
      */
     public function stepUploadNextFile(): string {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster stepUploadNextFile ====");
+
         if (empty($this->tmp_backup_dir)) {
             error_log("Backup stepUploadNextFile: no state found");
+            error_log("==== End Everneu plugin log ====");
             return 'error';
         }
 
@@ -578,6 +639,7 @@ class AutoBackupMaster {
         $dropbox_settings = get_option('ev_dropbox_settings');
         if (empty($dropbox_settings)) {
             error_log("Backup stepUploadNextFile: Dropbox settings not configured");
+            error_log("==== End Everneu plugin log ====");
             return 'error';
         }
 
@@ -587,6 +649,7 @@ class AutoBackupMaster {
 
         if (empty($dropbox_settings['refresh_token'])) {
             error_log("Backup stepUploadNextFile: missing credentials");
+            error_log("==== End Everneu plugin log ====");
             return 'error';
         }
 
@@ -600,6 +663,7 @@ class AutoBackupMaster {
 
         if (!$access_token) {
             error_log("Backup stepUploadNextFile: failed to get Dropbox access token");
+            error_log("==== End Everneu plugin log ====");
             return 'error';
         }
 
@@ -640,6 +704,7 @@ class AutoBackupMaster {
             }
 
             error_log("Backup step 5 done: all files uploaded");
+            error_log("==== End Everneu plugin log ====");
             return 'done';
         }
 
@@ -650,6 +715,7 @@ class AutoBackupMaster {
             error_log("Backup stepUploadNextFile: file not found, skipping - $local_path");
             $this->upload_index = $index + 1;
             $this->saveState();
+            error_log("==== End Everneu plugin log ====");
             return 'continue';
         }
 
@@ -660,6 +726,7 @@ class AutoBackupMaster {
             error_log("Backup stepUploadNextFile: cannot open - $local_path");
             $this->upload_index = $index + 1;
             $this->saveState();
+            error_log("==== End Everneu plugin log ====");
             return 'continue';
         }
 
@@ -685,6 +752,8 @@ class AutoBackupMaster {
 
         $this->upload_index = $index + 1;
         $this->saveState();
+
+        error_log("==== End Everneu plugin log ====");
         return 'continue';
     }
 
@@ -692,6 +761,9 @@ class AutoBackupMaster {
      * Step 6: Clean up temporary files.
      */
     public function stepCleanup(): void {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== AutoBackupMaster stepCleanup ====");
+
         if (!empty($this->tmp_backup_dir)) {
             $this->deleteDir($this->tmp_backup_dir);
             error_log("Backup step 6 done: temp directory deleted - {$this->tmp_backup_dir}");
@@ -699,6 +771,7 @@ class AutoBackupMaster {
 
         $this->clearState();
         error_log("Backup step 6 done: state cleared");
+        error_log("==== End Everneu plugin log ====");
     }
 
     // -------------------------------------------------------------------------

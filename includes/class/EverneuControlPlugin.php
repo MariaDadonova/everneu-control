@@ -72,7 +72,10 @@ class EverneuControlPlugin
             require_once $backups_file;
             new Admin\Backups\Backups;
         } else {
+            error_log("==== Everneu plugin log ====");
+            error_log("==== EverneuControlPlugin register_components ====");
             error_log('EVN: Backups.php missing, skipping init');
+            error_log("==== End Everneu plugin log ====");
             add_action('admin_notices', function() {
                 echo '<div class="notice notice-error"><p>Everneu Control: the plugin installation is damaged, reinstall manually.</p></div>';
             });

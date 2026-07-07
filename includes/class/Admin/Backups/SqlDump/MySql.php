@@ -221,6 +221,9 @@ class MySql
     }
 
     function db_backup($core_tables, $backup_dir = '') {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== MySQL db_backup ====");
+
         global $table_prefix, $wpdb;
 
         if (empty($backup_dir)) {
@@ -234,11 +237,13 @@ class MySql
             if (!$this->fp) {
                 $this->error(__('Could not open the backup file for writing!', 'wp-db-backup'));
                 error_log('MySql db_backup: failed to open file - ' . $backup_dir . $this->backup_filename);
+                error_log("==== End Everneu plugin log ====");
                 return false;
             }
         } else {
             $this->error(__('The backup directory is not writeable!', 'wp-db-backup'));
             error_log('MySql db_backup: directory not writable - ' . $backup_dir);
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
@@ -280,6 +285,7 @@ class MySql
 
         if ( count( $this->errors ) ) {
             error_log('MySql db_backup: completed with errors - ' . print_r($this->errors, true));
+            error_log("==== End Everneu plugin log ====");
             return false;
         } else {
             return $this->backup_filename;

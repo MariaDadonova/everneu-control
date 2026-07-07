@@ -46,6 +46,9 @@ class DropboxAPI
 
     //Ask access token by refresh
     public function curlRefreshToken($refresh_token) {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== DropboxAPI curlRefreshToken ====");
+
         $arr = [];
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://api.dropbox.com/oauth2/token');
@@ -62,10 +65,12 @@ class DropboxAPI
         if (curl_errno($ch) || empty($result_arr['access_token'])) {
             error_log('Dropbox curlRefreshToken failed: ' . curl_error($ch) . ' / response: ' . $result);
             curl_close($ch);
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
 
         curl_close($ch);
+        error_log("==== End Everneu plugin log ====");
         return $result_arr['access_token'];
     }
 
@@ -92,6 +97,9 @@ class DropboxAPI
 
     //Get list folders
     public function GetListFolder($access_token, $install_name) {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== DropboxAPI GetListFolder ====");
+
         if (empty($access_token)) {
             error_log('Dropbox GetListFolder: empty access token');
             return false;
@@ -126,6 +134,7 @@ class DropboxAPI
         $json = json_decode($result, true);
         if (empty($json['entries']) || !is_array($json['entries'])) {
             error_log('Dropbox GetListFolder: unexpected response - ' . $result);
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
         foreach ($json['entries'] as $data) {
@@ -134,6 +143,7 @@ class DropboxAPI
             }
         }
 
+        error_log("==== End Everneu plugin log ====");
         return false;
     }
 
@@ -191,6 +201,9 @@ class DropboxAPI
     //Send file to dropbox
     //file size <150Mb
     public function SendFile($access_token, $name, $fp, $size) {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== DropboxAPI SendFile ====");
+
         $folder_path = "/Secondary Backups/" . $name;
 
         $cheaders = array('Authorization: Bearer '.$access_token,
@@ -231,6 +244,7 @@ class DropboxAPI
             )
         );
 
+        error_log("==== End Everneu plugin log ====");
         return $response;
     }
 
@@ -374,6 +388,9 @@ class DropboxAPI
     }
 
     public function getOrCreateSharedLinkForFolder($access_token, $folder_path) {
+        error_log("==== Everneu plugin log ====");
+        error_log("==== DropboxAPI getOrCreateSharedLinkForFolder ====");
+
         // Try to get an existing link
         $url = "https://api.dropboxapi.com/2/sharing/list_shared_links";
         $headers = [
@@ -421,6 +438,7 @@ class DropboxAPI
             return $create_result['url'];
         } else {
             error_log('Dropbox: Error creating a link to a folder: ' . json_encode($create_result));
+            error_log("==== End Everneu plugin log ====");
             return false;
         }
     }
