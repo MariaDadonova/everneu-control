@@ -32,7 +32,11 @@ class Environment {
 
         $url = get_home_url();
 
-        if (stripos($url, 'wpenginepowered.com') === false && stripos($url, 'wpengine.com') === false && stripos($url, 'pantheonsite.io') === false) {
+        if (stripos($url, 'wpenginepowered.com') === false &&
+            stripos($url, 'wpengine.com') === false &&
+            stripos($url, 'pantheonsite.io') === false &&
+            stripos($url, '.local') === false
+        ) {
             return 'production';
         } elseif (stripos($url, 'stg') !== false) {
             return 'staging';
