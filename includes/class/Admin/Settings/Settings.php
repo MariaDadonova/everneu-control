@@ -41,6 +41,7 @@ class Settings
         //require_once __DIR__. '/SiteMap/SiteMapClass.php';
         require_once __DIR__ . '/Updater/UpdaterForm.php';
         require_once __DIR__ . '/GoogleAPIKey/KeyForm.php';
+        require_once __DIR__ . '/EmailSending/PreventEmailSending.php';
         wp_enqueue_style( 'evn-client-style', EVN_URL . 'assets/css/settings_tabs_styles.css' );
         ?>
 
@@ -65,6 +66,11 @@ class Settings
                         $svg_obj = new SVG\AllowSVGUpload;
                         $svg_obj->display_svg_ui();
                     ?></p>
+
+                    <p><?php
+                        $prevent_email_obj = new EmailSending\PreventEmailSending;
+                        $prevent_email_obj->display_prevent_email_sending_ui();
+                        ?></p>
 
                     <p><?php
                         $gtm_obj = new GTM\GTMTagPriority;
