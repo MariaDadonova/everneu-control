@@ -24,6 +24,9 @@ class EverneuControlPlugin
         require_once __DIR__ . '/Admin/Settings/GTM/GTMTagPriority.php';
         new \EVN\Admin\Settings\GTM\GTMTagPriority();
 
+        require_once __DIR__ . '/Admin/Settings/EmailSending/PreventEmailSending.php';
+        new \EVN\Admin\Settings\EmailSending\PreventEmailSending();
+
         // enqueue global styles/scripts here?
     }
 
