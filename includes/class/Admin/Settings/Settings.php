@@ -42,7 +42,6 @@ class Settings
         require_once __DIR__ . '/Updater/UpdaterForm.php';
         require_once __DIR__ . '/GoogleAPIKey/KeyForm.php';
         require_once __DIR__ . '/EmailSending/PreventEmailSending.php';
-        require_once __DIR__ . '/FormsReport/GravityFormsReport.php';
         wp_enqueue_style( 'evn-client-style', EVN_URL . 'assets/css/settings_tabs_styles.css' );
         ?>
 
@@ -82,8 +81,7 @@ class Settings
                 </section>
                 <section id="content-forms-report">
                     <p><?php
-                        $gf_report_obj = new FormsReport\GravityFormsReport;
-                        $gf_report_obj->gravity_forms_report_ui();
+                        FormsReport\GravityFormsReport::gravity_forms_report_ui();
                         ?></p>
                 </section>
                 <section id="content-github">
