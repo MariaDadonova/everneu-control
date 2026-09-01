@@ -42,6 +42,7 @@ class Settings
         require_once __DIR__ . '/Updater/UpdaterForm.php';
         require_once __DIR__ . '/GoogleAPIKey/KeyForm.php';
         require_once __DIR__ . '/EmailSending/PreventEmailSending.php';
+        require_once __DIR__ . '/FormsReport/GravityFormsReport.php';
         wp_enqueue_style( 'evn-client-style', EVN_URL . 'assets/css/settings_tabs_styles.css' );
         ?>
 
@@ -54,6 +55,8 @@ class Settings
                 <label for="sitemap">Site map</label>-->
                 <input id="svg" type="radio" name="tabs" checked>
                 <label for="svg">Advanced</label>
+                <input id="forms-report" type="radio" name="tabs">
+                <label for="forms-report">Forms Report</label>
                 <input id="github" type="radio" name="tabs">
                 <label for="github">Updates</label>
                 <input id="googleapi" type="radio" name="tabs">
@@ -75,6 +78,12 @@ class Settings
                     <p><?php
                         $gtm_obj = new GTM\GTMTagPriority;
                         $gtm_obj->display_gtm_ui();
+                        ?></p>
+                </section>
+                <section id="content-forms-report">
+                    <p><?php
+                        $gf_report_obj = new FormsReport\GravityFormsReport;
+                        $gf_report_obj->gravity_forms_report_ui();
                         ?></p>
                 </section>
                 <section id="content-github">
