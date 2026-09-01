@@ -201,7 +201,6 @@ class GravityFormsReport
             $forms[$result->id]['display_meta'] = self::get_honeypot_status($result->display_meta);
             $forms[$result->id]['notifications'] = self::parse_notification_details($result->notifications);
             $forms[$result->id]['confirmations'] = self::parse_confirmation_details($result->confirmations);
-            $forms[$result->id]['on_page'] = self::get_pages_with_form($result->id);
         }
 
         return $forms;
