@@ -137,3 +137,51 @@ section {
     font-weight: bold;
     width: 150px !important;
 }
+
+
+/* Forms Report table */
+.evn-gf-table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 20px;
+    margin-bottom: 40px;
+}
+
+.evn-gf-table th,
+.evn-gf-table td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+    vertical-align: top;
+}
+
+.evn-pages-cell {
+    min-width: 150px;
+}
+
+.evn-pages-loading {
+    color: #999;
+    font-style: italic;
+}
+
+/* Forms Report pagination */
+.evn-gf-pagination {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.evn-gf-pagination button {
+    min-width: 32px;
+}
+
+.evn-gf-pagination .evn-page-info {
+    color: #666;
+    font-size: 13px;
+}
+
+/* Fix WP admin footer overlap */
+#wpfooter {
+    display: none;
+}

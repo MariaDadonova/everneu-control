@@ -84,5 +84,9 @@ class EverneuControlPlugin
             });
         }
 
+        /* Forms report */
+        require_once EVN_DIR . 'includes/class/Admin/Settings/FormsReport/GravityFormsReport.php';
+        new Admin\Settings\FormsReport\GravityFormsReport();
+
     }
 }
