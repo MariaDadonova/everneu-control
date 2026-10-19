@@ -88,5 +88,9 @@ class EverneuControlPlugin
         require_once EVN_DIR . 'includes/class/Admin/Settings/FormsReport/GravityFormsReport.php';
         new Admin\Settings\FormsReport\GravityFormsReport();
 
+        /* Simple History settings */
+        require_once EVN_DIR . 'includes/class/Admin/Settings/SimpleHistory/SimpleHistoryExtendTimeRange.php';
+        new Admin\Settings\SimpleHistory\SimpleHistoryExtendTimeRange();
+
     }
 }

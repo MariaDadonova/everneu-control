@@ -75,6 +75,7 @@ input:checked + label {
 #sitemap:checked ~ #content-sitemap,
 #svg:checked ~ #content-svg,
 #forms-report:checked ~ #content-forms-report,
+#simple-history:checked ~ #content-simple-history,
 #github:checked ~ #content-github,
 #googleapi:checked ~ #content-googleapi {
     display: block;

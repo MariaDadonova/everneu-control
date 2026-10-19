@@ -3,6 +3,8 @@
 namespace EVN\Admin\Settings;
 
 
+use EVN\Admin\Settings\SimpleHistory\SimpleHistoryExtendTimeRange;
+
 /**
  * Settings subpage includes:
  *
@@ -40,6 +42,7 @@ class Settings
         require_once __DIR__ . '/GTM/GTMTagPriority.php';
         //require_once __DIR__. '/SiteMap/SiteMapClass.php';
         require_once __DIR__ . '/Updater/UpdaterForm.php';
+        require_once __DIR__ . '/SimpleHistory/SimpleHistoryExtendTimeRange.php';
         require_once __DIR__ . '/GoogleAPIKey/KeyForm.php';
         require_once __DIR__ . '/EmailSending/PreventEmailSending.php';
         wp_enqueue_style( 'evn-client-style', EVN_URL . 'assets/css/settings_tabs_styles.css' );
@@ -56,6 +59,8 @@ class Settings
                 <label for="svg">Advanced</label>
                 <input id="forms-report" type="radio" name="tabs">
                 <label for="forms-report">Forms Report</label>
+                <input id="simple-history" type="radio" name="tabs">
+                <label for="simple-history">Simple History</label>
                 <input id="github" type="radio" name="tabs">
                 <label for="github">Updates</label>
                 <input id="googleapi" type="radio" name="tabs">
@@ -82,6 +87,12 @@ class Settings
                 <section id="content-forms-report">
                     <p><?php
                         FormsReport\GravityFormsReport::gravity_forms_report_ui();
+                        ?></p>
+                </section>
+                <section id="content-simple-history">
+                    <p><?php
+                        $simple_history = new SimpleHistoryExtendTimeRange;
+                        $simple_history->display_simple_history_ui();
                         ?></p>
                 </section>
                 <section id="content-github">
