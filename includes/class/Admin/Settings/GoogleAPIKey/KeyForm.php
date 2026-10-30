@@ -52,15 +52,15 @@ class KeyForm
                 $json = json_decode($content, true);
                 if (!isset($json['type'], $json['private_key'], $json['client_email'])) {
                     unlink($target_path);
-                    add_settings_error('google_json_key', 'invalid_json', 'Неверный формат JSON-ключа.');
+                    add_settings_error('google_json_key', 'invalid_json', 'Incorrect JSON-key format.');
                     return;
                 }
 
                 //Add to wp_options
                 update_option('ev_google_service_key', $en_target_path);
-                add_settings_error('google_json_key', 'success', 'Файл успешно загружен.', 'updated');
+                add_settings_error('google_json_key', 'success', 'File uploaded successful.', 'updated');
             } else {
-                add_settings_error('google_json_key', 'upload_error', 'Не удалось сохранить файл.');
+                add_settings_error('google_json_key', 'upload_error', 'File did not save.');
             }
 
 
