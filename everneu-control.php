@@ -4,7 +4,7 @@
 Plugin Name: Everneu Control
 Plugin URI: https://github.com/MariaDadonova/everneu-control
 Description: Proprietary Everneu toolkit powering development workflow, site optimizations, and ongoing maintenance for your website.
-Version: 0.0.39
+Version: 0.0.40
 Author: Everneu
 Author URI: http://everneu.wpengine.com
 License: A "Slug" license name e.g. GPL2
