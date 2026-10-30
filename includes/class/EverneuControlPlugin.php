@@ -92,5 +92,11 @@ class EverneuControlPlugin
         require_once EVN_DIR . 'includes/class/Admin/Settings/SimpleHistory/SimpleHistoryExtendTimeRange.php';
         new Admin\Settings\SimpleHistory\SimpleHistoryExtendTimeRange();
 
+        /* Deactivate and delete credentials */
+        if (is_admin()) {
+            require_once EVN_DIR . 'includes/class/Admin/Deactivation/DeactivateAndClean.php';
+            new Admin\Deactivation\DeactivateAndClean();
+        }
+
     }
 }
