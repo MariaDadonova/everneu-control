@@ -98,5 +98,11 @@ class EverneuControlPlugin
             new Admin\Deactivation\DeactivateAndClean();
         }
 
+        /* Environment config warning */
+        if (is_admin()) {
+            require_once EVN_DIR . 'includes/class/Admin/Notices/EnvironmentConfigNotice.php';
+            new Admin\Notices\EnvironmentConfigNotice();
+        }
+
     }
 }

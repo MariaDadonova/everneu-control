@@ -97,7 +97,10 @@ class GTMTagPriority
         }
 
 
-        if (Environment::isProduction()) {
+        if (!Environment::isConfigured()) {
+            echo '<span style="color: #b32d2e">The current environment: Production (not confirmed, '
+                    . esc_html(Environment::CONSTANT) . ' is missing in wp-config.php). GTM included.</span>';
+        } elseif (Environment::isProduction()) {
             echo '<span style="color: green">The current environment: Production. GTM included.</span>';
         } else {
             echo '<span style="color: red">The current environment: Not production. GTM turned off.</span>';

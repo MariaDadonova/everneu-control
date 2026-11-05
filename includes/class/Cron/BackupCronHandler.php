@@ -7,6 +7,19 @@ use EVN\Admin\Backups\AutoBackupMaster;
 
 class BackupCronHandler {
 
+    /**
+     * Single-event steps of the backup chain.
+     * They are stored in the database, so they can be copied
+     * from production to another environment mid-backup.
+     */
+    public const STEP_HOOKS = [
+        'backup_step_dump_db',
+        'backup_step_archive_db',
+        'backup_step_archive_folder',
+        'backup_step_upload_dropbox',
+        'backup_step_cleanup',
+    ];
+
     public function __construct() {
         add_action('schedule_backup_by_month',    [$this, 'run']);
         add_action('backup_step_dump_db',         [$this, 'step_dump_db']);
@@ -16,22 +29,52 @@ class BackupCronHandler {
         add_action('backup_step_cleanup',         [$this, 'step_cleanup']);
     }
 
+    /**
+     * Every step checks the environment, not only run():
+     * steps copied from production must not continue on another environment
+     * and upload to the production Dropbox.
+     */
+    private function isAllowed(string $step): bool {
+        if (Environment::isConfirmedProduction()) {
+            return true;
+        }
+
+        error_log('EVN Backup: ' . $step . ' skipped, non-production environment ('
+            . Environment::detect() . ', ' . Environment::getCurrentHost() . ')');
+
+        self::clearSteps();
+
+        return false;
+    }
+
+    public static function clearSteps(): void {
+        foreach (self::STEP_HOOKS as $hook) {
+            wp_clear_scheduled_hook($hook);
+        }
+    }
+
     public function run() {
-        if (Environment::isProduction()) {
-            require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
-            $backup = new AutoBackupMaster();
-            if ($backup->initBackup()) {
-                wp_clear_scheduled_hook('backup_step_dump_db');
-                wp_schedule_single_event(time() + 5, 'backup_step_dump_db');
-                spawn_cron();
-                error_log('Backup initiated successfully.');
-            } else {
-                error_log('Failed to initiate backup.');
-            }
+        if (!$this->isAllowed(__FUNCTION__)) {
+            return;
+        }
+
+        require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
+        $backup = new AutoBackupMaster();
+        if ($backup->initBackup()) {
+            wp_clear_scheduled_hook('backup_step_dump_db');
+            wp_schedule_single_event(time() + 5, 'backup_step_dump_db');
+            spawn_cron();
+            error_log('Backup initiated successfully.');
+        } else {
+            error_log('Failed to initiate backup.');
         }
     }
 
     public function step_dump_db() {
+        if (!$this->isAllowed(__FUNCTION__)) {
+            return;
+        }
+
         error_log('Backup step_dump_db CALLED');
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
@@ -47,6 +90,10 @@ class BackupCronHandler {
     }
 
     public function step_archive_db() {
+        if (!$this->isAllowed(__FUNCTION__)) {
+            return;
+        }
+
         error_log('Backup step_archive_db CALLED');
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
@@ -63,6 +110,10 @@ class BackupCronHandler {
     }
 
     public function step_archive_folder() {
+        if (!$this->isAllowed(__FUNCTION__)) {
+            return;
+        }
+
         error_log('Backup step_archive_folder CALLED');
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
@@ -87,6 +138,10 @@ class BackupCronHandler {
     }
 
     public function step_upload_dropbox() {
+        if (!$this->isAllowed(__FUNCTION__)) {
+            return;
+        }
+
         require_once EVN_DIR . 'includes/class/Admin/Backups/AutoBackupMaster.php';
         $backup = new AutoBackupMaster();
 
@@ -112,4 +167,5 @@ class BackupCronHandler {
         $backup->stepCleanup();
         error_log('Backup cleanup done.');
     }
+
 }

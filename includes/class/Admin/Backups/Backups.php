@@ -165,11 +165,13 @@ class Backups
                     /*$env = wp_get_environment_type();
                     echo '<h4>The current environment: '.$env.'</h4>';*/
 
-                    $create = '';
-                    $delete = '';
-                    $api_keys = '';
+                    $create     = '';
+                    $delete     = '';
+                    $api_keys   = '';
+                    $cron_ex    = '';
+                    $env_status = '';
 
-                    if (Environment::isProduction()) {
+                    if (Environment::isConfirmedProduction()) {
                         $env = 'Production';
                         /* If cron task exists, show button, if not - disable */
                         if (wp_next_scheduled('schedule_backup_by_month') && get_option('ev_dropbox_settings')){
@@ -189,35 +191,24 @@ class Backups
                             $delete = "disabled";
                             $api_keys = 'Does not exist';
                         }
-                    } elseif (Environment::isStaging()) {
-                        $env = 'Staging';
-                        $env_status = '<span style="color: red">Backup is not created in staging</span>';
-                        $delete = "disabled";
-                    } elseif (Environment::isDevelopment()) {
-                        $env = 'Development';
-                        $env_status = '<span style="color: red">Backup is not created in development</span>';
-                        $delete = "disabled";
                     } else {
-                        $env = 'Unknown';
-                        /* If cron task exists, show button, if not - disable */
-                        if (wp_next_scheduled('schedule_backup_by_month') && get_option('ev_dropbox_settings')){
-                            $cron_ex = 'Yes';
-                            $env_status = '<span style="color: green">Backup is created according to a schedule</span>';
-                            $create = "disabled";
-                            $api_keys = 'Exist';
-                        } elseif (!wp_next_scheduled('schedule_backup_by_month') && get_option('ev_dropbox_settings')) {
-                            $cron_ex = 'No';
-                            $env_status = '<span style="color: red">Backup is not created without a cron task</span>';
-                            $delete = "disabled";
-                            $api_keys = 'Exist';
-                        } elseif (!get_option('ev_dropbox_settings') && wp_next_scheduled('schedule_backup_by_month')) {
-                            $cron_ex = 'No';
-                            $api_keys = 'None';
-                            $env_status = '<span style="color: red">Backup is not send to DropBox without API keys. Please, fill out keys in form of API keys tab</span>';
-                            $delete = "disabled";
-                            $api_keys = 'Does not exist';
+                        $labels = [
+                                'production'  => 'Production (not confirmed)',
+                                'staging'     => 'Staging',
+                                'development' => 'Development',
+                                'local'       => 'Local',
+                                'unknown'     => 'Unknown (non-production)',
+                        ];
+                        $env    = $labels[Environment::detect()] ?? 'Unknown (non-production)';
+                        $delete = 'disabled';
+
+                        if (!Environment::isConfigured()) {
+                            $env_status = '<span style="color: red">Backup is disabled: add ' . Environment::CONSTANT . ' to wp-config.php</span>';
+                        } else {
+                            $env_status = '<span style="color: red">Backup is not created in non-production environments</span>';
                         }
                     }
+
 
                     echo '<table class="tg">
                              <tbody>
@@ -242,7 +233,7 @@ class Backups
                              </tbody>
                            </table>';
 
-              if (!Environment::isProduction()) {
+              if (!Environment::isConfirmedProduction()) {
                   echo '<div style="display: flex; gap: 10px;">
                               <form method="post">
                                 <button type="submit" name="set_cron" class="button button-primary" ' . $create . '>Create Cron task</button>

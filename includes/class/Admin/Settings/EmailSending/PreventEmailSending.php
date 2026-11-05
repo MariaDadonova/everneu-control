@@ -17,7 +17,10 @@ class PreventEmailSending
 
         <?php
 
-        if (Environment::isProduction()) {
+        if (!Environment::isConfigured()) {
+            echo '<span style="color: #b32d2e">The current environment: Production (not confirmed, '
+                    . esc_html(Environment::CONSTANT) . ' is missing in wp-config.php). Emails will send.</span>';
+        } elseif (Environment::isProduction()) {
             echo '<span style="color: green">The current environment: Production. Emails will send.</span>';
         } else {
             echo '<span style="color: red">The current environment: Not production. Emails sending turned off.</span>';
