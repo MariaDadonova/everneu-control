@@ -12,7 +12,7 @@ class Activator
         add_filter('cron_schedules', [CronInterval::class, 'add_custom_schedules']);
 
         // if the environment is production, we register the cron task
-        if (Environment::isProduction()) {
+        if (Environment::isConfirmedProduction()) {
             CronInterval::schedule_monthly_backup_event();
         }
     }
@@ -20,5 +20,8 @@ class Activator
     public static function deactivate() {
         // Deleting the cron task
         CronInterval::clear_scheduled_backup_event();
+
+        // Deleting steps of an unfinished backup chain
+        \EVN\Cron\BackupCronHandler::clearSteps();
     }
 }
